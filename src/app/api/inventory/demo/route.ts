@@ -19,9 +19,7 @@ const DEMO_STOCKS: Record<string, number> = {
   "papa pastusa seleccionada": 150,
   "tomate chonto maduro": 65,
   "cebolla cabezona blanca": 80,
-  "aguacate hass": 40,
   "plátano hartón verde": 90,
-  "carbón vegetal 3kg": 24,
 };
 
 export async function POST(request: Request) {

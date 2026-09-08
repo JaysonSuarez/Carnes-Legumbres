@@ -188,19 +188,24 @@ export async function DELETE(request: Request) {
       );
     }
 
+    // Eliminar referencias asociadas para garantizar integridad y permitir borrado limpio
+    await supabase.from("cl_waste_logs").delete().eq("productId", id);
+    await supabase.from("cl_batch_items").delete().eq("productId", id);
+    await supabase.from("cl_sale_items").delete().eq("productId", id);
+
     const { error } = await supabase.from("cl_products").delete().eq("id", id);
 
     if (error) {
       throw error;
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: "Producto eliminado correctamente" });
   } catch (error) {
     console.error("Error deleting product:", error);
     return NextResponse.json(
       {
         success: false,
-        error: "No se puede eliminar un producto con ventas o lotes asociados",
+        error: "Error al eliminar el producto",
       },
       { status: 500 }
     );

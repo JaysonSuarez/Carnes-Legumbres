@@ -272,22 +272,6 @@ async function main() {
     },
   });
 
-  const aguacateHass = await prisma.product.create({
-    data: {
-      code: "LEG-04",
-      name: "Aguacate Hass",
-      categoryId: catLegumbres.id,
-      unit: "kg",
-      costPrice: 5800,
-      estimatedWastePercent: 10.0,
-      targetMarginPercent: 30.0,
-      sellPrice: 9000,
-      currentStock: 40.0,
-      minStock: 10.0,
-      isMeatCut: false,
-    },
-  });
-
   const platanoVerde = await prisma.product.create({
     data: {
       code: "LEG-05",
@@ -300,22 +284,6 @@ async function main() {
       sellPrice: 4100,
       currentStock: 90.0,
       minStock: 20.0,
-      isMeatCut: false,
-    },
-  });
-
-  const carbonVegetal = await prisma.product.create({
-    data: {
-      code: "ABA-01",
-      name: "Carbón Vegetal 3kg",
-      categoryId: catAbarrotes.id,
-      unit: "unidad",
-      costPrice: 9500,
-      estimatedWastePercent: 0.0,
-      targetMarginPercent: 30.0,
-      sellPrice: 14500,
-      currentStock: 25.0,
-      minStock: 5.0,
       isMeatCut: false,
     },
   });
