@@ -78,6 +78,7 @@ export function ReportsView() {
   const [period, setPeriod] = useState<PeriodType>("daily");
   const [data, setData] = useState<AnalyticsPeriodResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Filtros y diálogos
   const [ticketSearch, setTicketSearch] = useState("");
@@ -89,14 +90,18 @@ export function ReportsView() {
 
   const fetchReports = async (p: PeriodType) => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`/api/analytics?period=${p}`);
       const json = await res.json();
       if (json.success && json.data) {
         setData(json.data);
+      } else {
+        setError(json.error || "No se pudieron obtener los reportes.");
       }
     } catch (e) {
       console.error("Error al cargar reportes:", e);
+      setError("Error de conexión al cargar reportes.");
     } finally {
       setLoading(false);
     }
@@ -179,13 +184,21 @@ export function ReportsView() {
       </div>
 
       {/* Tarjetas KPI del Período */}
-      {loading || !data ? (
+      {loading && !data ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Skeleton className="h-28 rounded-xl" />
           <Skeleton className="h-28 rounded-xl" />
           <Skeleton className="h-28 rounded-xl" />
           <Skeleton className="h-28 rounded-xl" />
         </div>
+      ) : !data ? (
+        <Card className="border-red-200 bg-red-50/50 p-6 text-center">
+          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-red-900">{error || "No se pudieron cargar los datos de auditoría"}</p>
+          <Button onClick={() => fetchReports(period)} className="mt-3 text-xs bg-slate-900 text-white cursor-pointer">
+            Reintentar
+          </Button>
+        </Card>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Total Ventas */}

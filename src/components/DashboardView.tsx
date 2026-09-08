@@ -114,14 +114,21 @@ export function DashboardView({
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [stockAlerts, setStockAlerts] = useState<StockAlertProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true);
+    setErrorMessage(null);
     Promise.all([
       fetch("/api/analytics").then((r) => r.json()),
       fetch("/api/products").then((r) => r.json()),
     ])
       .then(([analyticsRes, productsRes]) => {
-        if (analyticsRes.success) setData(analyticsRes.data);
+        if (analyticsRes.success && analyticsRes.data) {
+          setData(analyticsRes.data);
+        } else {
+          setErrorMessage(analyticsRes.error || "No se pudieron obtener las métricas.");
+        }
         if (productsRes.success && Array.isArray(productsRes.data)) {
           const critical = productsRes.data
             .filter(
@@ -140,11 +147,18 @@ export function DashboardView({
           setStockAlerts(critical);
         }
       })
-      .catch((e) => console.error(e))
+      .catch((e) => {
+        console.error(e);
+        setErrorMessage("Error de conexión al cargar el panel.");
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
-  if (loading || !data) {
+  if (loading && !data) {
     return (
       <div className="space-y-6 max-w-6xl mx-auto">
         <div className="flex justify-between items-center">
@@ -158,6 +172,25 @@ export function DashboardView({
           <Skeleton className="h-28 rounded-xl" />
         </div>
         <Skeleton className="h-72 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="space-y-6 max-w-6xl mx-auto py-8">
+        <Card className="border-red-200 bg-red-50/50 p-8 text-center max-w-lg mx-auto">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+          <h2 className="text-lg font-bold text-red-900">
+            {errorMessage || "No se pudieron cargar los datos del sistema"}
+          </h2>
+          <p className="text-xs text-red-600 mt-2">
+            No se pudo establecer conexión con la base de datos o los reportes.
+          </p>
+          <Button onClick={loadData} className="mt-5 bg-slate-900 hover:bg-slate-800 text-white cursor-pointer">
+            Reintentar carga
+          </Button>
+        </Card>
       </div>
     );
   }
