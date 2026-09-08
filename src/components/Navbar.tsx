@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { StockNotificationCenter } from "@/components/StockNotificationCenter";
+import { OfflineSyncIndicator } from "@/components/OfflineSyncIndicator";
 
 export type ActiveTab =
   | "dashboard"
@@ -98,6 +99,7 @@ export function Navbar({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            <OfflineSyncIndicator />
             <Badge variant="success" className="hidden sm:inline-flex px-2.5 py-0.5 text-xs font-semibold">
               Meta: Margen Real ≥ 30%
             </Badge>

@@ -38,6 +38,12 @@ import { CleanNumberInput } from "@/components/ui/clean-number-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InvoiceDialog, SaleInvoiceData } from "@/components/InvoiceDialog";
 import { dispatchStockToast } from "@/components/StockNotificationCenter";
+import {
+  isOnline,
+  enqueueAction,
+  saveProductsCache,
+  getCachedProducts,
+} from "@/lib/offline-sync";
 
 interface Product {
   id: string;
@@ -269,7 +275,17 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
     fetch("/api/products")
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) setProducts(data.data);
+        if (data.success && Array.isArray(data.data)) {
+          setProducts(data.data);
+          saveProductsCache(data.data);
+        } else {
+          const cached = getCachedProducts();
+          if (cached) setProducts(cached);
+        }
+      })
+      .catch(() => {
+        const cached = getCachedProducts();
+        if (cached) setProducts(cached);
       })
       .finally(() => setLoading(false));
   };
@@ -378,22 +394,77 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
     if (cart.length === 0) return;
     setIsProcessing(true);
 
-    try {
-      const payload = {
-        customerName: customerName.trim() || "Cliente Mostrador",
+    const payload = {
+      customerName: customerName.trim() || "Cliente Mostrador",
+      paymentMethod,
+      items: cart.map((i) => ({
+        productId: i.product.id,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+      })),
+    };
+
+    const processOfflineSale = () => {
+      enqueueAction("SALE", payload);
+
+      const count = Math.floor(1000 + Math.random() * 9000);
+      const offlineSaleInvoice: SaleInvoiceData = {
+        id: "offline_" + Date.now(),
+        saleCode: `TKT-OFFLINE-${count}`,
+        date: new Date().toISOString(),
+        totalAmount,
+        totalCost,
+        totalProfit,
+        realMarginPercent: overallMargin,
         paymentMethod,
-        items: cart.map((i) => ({
-          productId: i.product.id,
+        customerName: customerName.trim() || "Cliente Mostrador",
+        items: cart.map((i, idx) => ({
+          id: `item_off_${idx}`,
           quantity: i.quantity,
+          unitCost: i.product.costPrice,
           unitPrice: i.unitPrice,
+          subtotal: i.subtotal,
+          profit: i.profit,
+          realMarginPercent: i.realMarginPercent,
+          product: {
+            id: i.product.id,
+            name: i.product.name,
+            unit: i.product.unit,
+            category: { name: i.product.category?.name || "General" },
+          },
         })),
       };
 
+      setInvoiceSale(offlineSaleInvoice);
+      setShowInvoiceModal(true);
+
+      dispatchStockToast({
+        title: "📦 Venta guardada sin conexión",
+        message: `Ticket generado: ${offlineSaleInvoice.saleCode}. Se subirá automáticamente a Supabase cuando vuelva internet.`,
+        type: "warning",
+      });
+
+      setCart([]);
+      setMobilePosTab("catalog");
+      const cached = getCachedProducts();
+      if (cached) setProducts(cached);
+      if (onSaleCompleted) onSaleCompleted();
+    };
+
+    if (!isOnline()) {
+      processOfflineSale();
+      setIsProcessing(false);
+      return;
+    }
+
+    try {
       const res = await fetch("/api/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
+      if (!res.ok) throw new Error("Fallo de conexión al servidor");
 
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Error procesando venta");
@@ -423,7 +494,8 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
       setMobilePosTab("catalog");
       if (onSaleCompleted) onSaleCompleted();
     } catch (err: any) {
-      alert(err.message || "Error al procesar la venta");
+      console.warn("Fallo online, guardando venta localmente:", err);
+      processOfflineSale();
     } finally {
       setIsProcessing(false);
     }

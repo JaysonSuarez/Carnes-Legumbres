@@ -9,6 +9,13 @@
     "lint": "eslint",
     "postinstall": "prisma generate"
   },
+  "allowScripts": {
+    "@prisma/client": true,
+    "@prisma/engines": true,
+    "esbuild": true,
+    "prisma": true,
+    "unrs-resolver": true
+  },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "@radix-ui/react-dialog": "^1.1.23",

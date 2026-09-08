@@ -1,0 +1,28 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="emerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="meat" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f43f5e" />
+      <stop offset="100%" stop-color="#e11d48" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <circle cx="256" cy="256" r="180" fill="#334155" opacity="0.3" />
+  <!-- Beef & Grocery Icon -->
+  <g transform="translate(136, 136) scale(10)">
+    <!-- Store Roof -->
+    <path d="M2 9 L12 2 L22 9 L20 21 L4 21 Z" fill="none" stroke="#f8fafc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Beef cut silhouette inside -->
+    <path d="M8 14 C8 12 11 12 13 14 C15 16 16 18 13 18 C10 18 8 16 8 14 Z" fill="url(#meat)"/>
+    <!-- Leaf / Legumbre silhouette -->
+    <path d="M12 11 C15 10 17 12 16 15 C14 15 12 13 12 11 Z" fill="url(#emerald)"/>
+  </g>
+  <text x="256" y="420" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="800" fill="#f8fafc" letter-spacing="1">CARNE &amp; LEGUMBRE</text>
+</svg>
