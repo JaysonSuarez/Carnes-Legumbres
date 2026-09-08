@@ -1,0 +1,114 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Category {
+  id                     String    @id @default(cuid())
+  name                   String    @unique
+  slug                   String    @unique
+  type                   String    // "CARNICERIA", "LEGUMBRERIA", "ABARROTES"
+  defaultWastePercentage Float     @default(5.0)
+  defaultMarginTarget    Float     @default(30.0)
+  products               Product[]
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+}
+
+model Product {
+  id                    String              @id @default(cuid())
+  code                  String?             @unique
+  name                  String
+  categoryId            String
+  category              Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  unit                  String              @default("kg") // "kg", "g", "lb", "unidad", "atado"
+  costPrice             Float               @default(0.0) // Costo base o de última compra por unidad/kg
+  estimatedWastePercent Float               @default(5.0) // % de merma estimada habitual
+  targetMarginPercent   Float               @default(30.0) // Meta de margen real (mínimo 30%)
+  sellPrice             Float               @default(0.0) // Precio de venta fijado al público
+  currentStock          Float               @default(0.0) // Stock disponible en la unidad del producto
+  minStock              Float               @default(5.0) // Umbral para alerta de inventario bajo
+  isMeatCut             Boolean             @default(false)
+  batchItems            PurchaseBatchItem[]
+  saleItems             SaleItem[]
+  wasteLogs             WasteLog[]
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+}
+
+model PurchaseBatch {
+  id                  String              @id @default(cuid())
+  batchNumber         String              @unique
+  date                DateTime            @default(now())
+  invoiceNumber       String?
+  supplier            String?
+  batchType           String              @default("MEAT_WHOLESALE") // "MEAT_WHOLESALE", "PRODUCE_BULK", "GENERAL"
+  totalCost           Float               // Gasto total en el pedido / compra
+  totalWeightKg       Float?              // Peso bruto recibido
+  notes               String?
+  projectedRevenue    Float               @default(0.0) // Venta estimada de todos los cortes/productos
+  projectedRealMargin Float               @default(0.0) // Margen real calculado %
+  status              String              @default("ACTIVE") // "ACTIVE", "COMPLETED", "DRAFT"
+  items               PurchaseBatchItem[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+}
+
+model PurchaseBatchItem {
+  id                 String        @id @default(cuid())
+  batchId            String
+  batch              PurchaseBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  productId          String
+  product            Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantityKg         Float         // Peso o cantidad obtenida vendible
+  wasteKg            Float         @default(0.0) // Merma o residuo (hueso, sebo, recorte)
+  costAttributed     Float         // Costo atribuido por unidad/kg
+  suggestedSellPrice Float         // Precio de venta sugerido para margen mínimo 30%
+  actualSellPrice    Float         // Precio de venta final fijado
+  projectedSubtotal  Float         // Subtotal proyectado (quantityKg * actualSellPrice)
+  soldQuantity       Float         @default(0.0) // Cantidad ya vendida de este corte/lote
+}
+
+model Sale {
+  id                String     @id @default(cuid())
+  saleCode          String     @unique // ej: "TKT-1001"
+  date              DateTime   @default(now())
+  totalAmount       Float      // Total cobrado al cliente
+  totalCost         Float      // Costo total de lo vendido
+  totalProfit       Float      // Ganancia neta (totalAmount - totalCost)
+  realMarginPercent Float      // Margen real obtenido: (totalProfit / totalAmount) * 100
+  paymentMethod     String     @default("EFECTIVO") // "EFECTIVO", "TRANSFERENCIA", "TARJETA", "CREDITO"
+  customerName      String?
+  items             SaleItem[]
+  createdAt         DateTime   @default(now())
+}
+
+model SaleItem {
+  id                String   @id @default(cuid())
+  saleId            String
+  sale              Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity          Float    // Cantidad vendida (kg o unidades)
+  unitCost          Float    // Costo unitario al momento de la venta
+  unitPrice         Float    // Precio de venta unitario
+  subtotal          Float    // quantity * unitPrice
+  profit            Float    // subtotal - (quantity * unitCost)
+  realMarginPercent Float    // (profit / subtotal) * 100
+}
+
+model WasteLog {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Float    // Cantidad desechada o mermada
+  reason    String   // "DESHIDRATACION", "DESPERDICIO_MADURACION", "DESPOSTE_HUESO_SEBO", "DETERIORO", "OTRO"
+  costLoss  Float    // Pérdida monetaria calculada
+  notes     String?
+  createdAt DateTime @default(now())
+}
