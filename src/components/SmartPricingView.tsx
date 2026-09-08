@@ -281,7 +281,56 @@ export function SmartPricingView() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto touch-scroll">
+          {/* VISTA MÓVIL: Tarjetas de Escala de Margen (md:hidden) */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {isZero ? (
+              <div className="py-8 text-center text-xs text-slate-400 p-4">
+                Escribe un costo en el campo de arriba para ver la escala de precios sugeridos.
+              </div>
+            ) : (
+              marginTiers.map((tier) => {
+                const price = calculatePriceForTargetMargin(costInput, tier, wastePercent);
+                const profit = price - comparison.effectiveCost;
+                const isSelected = tier === targetMargin;
+
+                return (
+                  <div
+                    key={tier}
+                    className={`p-3.5 flex items-center justify-between ${
+                      isSelected ? "bg-emerald-50/50 border-l-4 border-l-emerald-600" : ""
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-900">{tier}% Margen</span>
+                        {tier >= 30 ? (
+                          <Badge variant="success" className="text-[9px] px-1.5 py-0">
+                            Recomendado
+                          </Badge>
+                        ) : (
+                          <Badge variant="warning" className="text-[9px] px-1.5 py-0">
+                            Bajo
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-emerald-700 font-medium mt-0.5">
+                        Ganancia: +{formatCurrency(profit)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-base font-bold text-slate-900">
+                        {formatCurrency(price)}
+                      </div>
+                      <div className="text-[10px] text-slate-400">Precio Venta</div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* VISTA ESCRITORIO: Tabla Completa (hidden md:block) */}
+          <div className="hidden md:block overflow-x-auto touch-scroll">
             <Table>
               <TableHeader>
                 <TableRow>

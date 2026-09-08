@@ -839,22 +839,23 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
                           </div>
                         </div>
 
-                        {/* Control Rápido de Cantidad (+ / -) */}
+                        {/* Control Rápido de Cantidad (+ / -) con botones táctiles cómodos */}
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             type="button"
                             onClick={() => handleStepQuantity(idx, -1)}
-                            className="w-5 h-5 rounded bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                            className="w-8 h-8 sm:w-6 sm:h-6 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-95 flex items-center justify-center cursor-pointer shadow-2xs"
                             title="Disminuir"
+                            aria-label="Disminuir cantidad"
                           >
-                            <Minus className="w-2.5 h-2.5" />
+                            <Minus className="w-3.5 h-3.5 sm:w-2.5 sm:h-2.5" />
                           </button>
 
                           <div className="w-16">
                             <CleanNumberInput
                               value={item.quantity}
                               onChange={(val) => handleUpdateQuantity(idx, val)}
-                              className="h-6 px-1.5 py-0.5 text-right font-bold text-xs"
+                              className="h-8 sm:h-6 px-1.5 py-0.5 text-right font-bold text-xs"
                               placeholder="0"
                             />
                           </div>
@@ -862,10 +863,11 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
                           <button
                             type="button"
                             onClick={() => handleStepQuantity(idx, 1)}
-                            className="w-5 h-5 rounded bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                            className="w-8 h-8 sm:w-6 sm:h-6 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-95 flex items-center justify-center cursor-pointer shadow-2xs"
                             title="Aumentar"
+                            aria-label="Aumentar cantidad"
                           >
-                            <Plus className="w-2.5 h-2.5" />
+                            <Plus className="w-3.5 h-3.5 sm:w-2.5 sm:h-2.5" />
                           </button>
 
                           <span className="text-[10px] text-slate-400 font-mono w-4">
@@ -881,10 +883,11 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
 
                         <button
                           onClick={() => handleRemoveFromCart(idx)}
-                          className="text-slate-400 hover:text-red-600 p-0.5 cursor-pointer shrink-0"
+                          className="text-slate-400 hover:text-red-600 p-1.5 sm:p-0.5 cursor-pointer shrink-0 rounded-lg hover:bg-rose-50 active:scale-95 transition-colors"
                           title="Eliminar"
+                          aria-label="Eliminar producto"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-rose-500" />
                         </button>
                       </div>
                     );
@@ -894,11 +897,11 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
             </CardContent>
           </div>
 
-          <CardFooter className="p-5 pt-0 flex flex-col space-y-3 border-t border-slate-100">
+          <CardFooter className="p-4 sm:p-5 pt-0 flex flex-col space-y-3 border-t border-slate-100">
             {/* Total a Cobrar (Siempre Visible y Destacado) */}
             <div className="w-full flex justify-between items-baseline pt-3">
               <span className="text-xs uppercase font-bold text-slate-500">Total a Cobrar:</span>
-              <span className="text-2xl font-black text-slate-900 font-mono">
+              <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
                 {formatCurrency(totalAmount)}
               </span>
             </div>
@@ -941,7 +944,7 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
               onClick={handleCheckout}
               disabled={cart.length === 0 || isProcessing}
               size="default"
-              className="w-full font-bold text-xs"
+              className="w-full font-bold text-sm h-11 shadow-sm cursor-pointer"
             >
               <Receipt className="w-4 h-4 mr-1.5" />
               {isProcessing ? "Generando Factura..." : "Cobrar Ticket y Generar Factura"}
@@ -950,16 +953,16 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
         </Card>
       </div>
 
-      {/* Barra Flotante Inferior Móvil para Ir al Cobro */}
+      {/* Barra Flotante Inferior Móvil para Ir al Cobro (Ubicada por encima de la barra de navegación) */}
       {cart.length > 0 && mobilePosTab === "catalog" && (
-        <div className="lg:hidden fixed bottom-3 left-3 right-3 z-40">
+        <div className="lg:hidden fixed bottom-16 left-3 right-3 z-30 animate-in slide-in-from-bottom-2 duration-150">
           <button
             type="button"
             onClick={() => setMobilePosTab("cart")}
-            className="w-full bg-slate-900 hover:bg-slate-950 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center justify-between border border-slate-700 cursor-pointer active:scale-[0.98] transition-transform"
+            className="w-full bg-slate-900 hover:bg-slate-950 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center justify-between border border-slate-700 cursor-pointer active:scale-[0.98] transition-transform"
           >
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs shadow-xs">
                 {cart.length}
               </span>
               <span className="text-xs font-bold">Ver Ticket</span>
@@ -968,7 +971,7 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
               <span className="font-mono text-sm font-black text-emerald-400">
                 {formatCurrency(totalAmount)}
               </span>
-              <span className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-md font-bold">
+              <span className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold shadow-xs">
                 Cobrar →
               </span>
             </div>

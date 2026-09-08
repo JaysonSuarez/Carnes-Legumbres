@@ -132,7 +132,7 @@ export function WasteView() {
             </p>
           </div>
 
-          <Button onClick={() => setShowModal(true)} size="sm" className="self-start sm:self-auto text-xs">
+          <Button onClick={() => setShowModal(true)} size="sm" className="w-full sm:w-auto h-10 sm:h-9 text-xs font-semibold">
             <Plus className="w-3.5 h-3.5 mr-1" />
             Registrar Merma
           </Button>
@@ -172,7 +172,7 @@ export function WasteView() {
 
       {/* Tabla de Mermas */}
       <Card className="shadow-xs overflow-hidden">
-        <CardHeader className="p-5 pb-3">
+        <CardHeader className="p-4 sm:p-5 pb-3">
           <CardTitle className="text-sm font-bold text-slate-900">
             Historial de Descartes
           </CardTitle>
@@ -181,7 +181,56 @@ export function WasteView() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto touch-scroll">
+          {/* VISTA MÓVIL: Tarjetas de Mermas (md:hidden) */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="p-4 space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              ))
+            ) : logs.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                No hay mermas registradas.
+              </div>
+            ) : (
+              logs.map((log) => (
+                <div key={log.id} className="p-3.5 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-semibold text-sm text-slate-900">{log.product.name}</div>
+                      <div className="text-[11px] text-slate-400 font-mono">
+                        {new Date(log.date).toLocaleDateString("es-CO")}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-rose-700">
+                        -{formatCurrency(log.costLoss)}
+                      </div>
+                      <div className="text-xs font-semibold text-rose-600">
+                        -{log.quantity} {log.product.unit}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-50">
+                    <Badge variant="outline" className="text-[10px] font-normal">
+                      {log.reason.replace(/_/g, " ")}
+                    </Badge>
+                    {log.notes && (
+                      <span className="text-[11px] text-slate-500 italic truncate max-w-[180px]">
+                        {log.notes}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* VISTA ESCRITORIO: Tabla Completa (hidden md:block) */}
+          <div className="hidden md:block overflow-x-auto touch-scroll">
             <Table>
               <TableHeader>
                 <TableRow>

@@ -54,8 +54,8 @@ export default function Home() {
         stockAlertCount={stockAlertCount}
       />
 
-      {/* Contenedor Principal */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      {/* Contenedor Principal con espacio para la barra de navegación inferior móvil */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 py-3 sm:px-6 sm:py-6 lg:p-8 pb-24 md:pb-8">
         {activeTab === "dashboard" && (
           <DashboardView
             onNavigateToBatch={() => setActiveTab("meat-batch")}
@@ -90,8 +90,8 @@ export default function Home() {
         {activeTab === "waste" && <WasteView />}
       </main>
 
-      {/* Footer Minimalista */}
-      <footer className="border-t border-slate-200/80 bg-white py-4 text-xs text-slate-500">
+      {/* Footer Minimalista (Oculto en móvil para no estorbar con la navegación inferior) */}
+      <footer className="hidden md:block border-t border-slate-200/80 bg-white py-4 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>
             Carne & Legumbre • Sistema de Gestión Comercial y Control Operativo

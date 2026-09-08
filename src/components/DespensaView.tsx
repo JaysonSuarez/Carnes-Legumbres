@@ -854,14 +854,14 @@ export function DespensaView() {
             </div>
 
             {/* Botones de Acción */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row items-center sm:justify-end gap-2.5 pt-2">
               {formMatchedProduct && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={resetForm}
-                  className="text-xs"
+                  className="text-xs w-full sm:w-auto h-10 sm:h-9"
                 >
                   Cancelar Edición
                 </Button>
@@ -869,12 +869,12 @@ export function DespensaView() {
               <Button
                 type="submit"
                 disabled={saving || !formName.trim()}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9 px-5 shadow-xs"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-11 sm:h-9 px-5 shadow-xs w-full sm:w-auto"
               >
                 {saving ? (
                   <span>Guardando...</span>
                 ) : (
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center justify-center gap-1.5">
                     <Save className="w-3.5 h-3.5" />
                     <span>
                       {formMatchedProduct ? "Actualizar en Inventario" : "Registrar Producto en Inventario"}
@@ -900,22 +900,22 @@ export function DespensaView() {
             </CardDescription>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative w-48 sm:w-64">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <Input
                 type="text"
                 placeholder="Buscar producto..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 h-8 text-xs"
+                className="pl-8 h-9 sm:h-8 text-xs w-full"
               />
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={fetchData}
-              className="h-8 px-2 text-xs"
+              className="h-9 sm:h-8 px-3 sm:px-2 text-xs shrink-0"
               title="Refrescar catálogo"
             >
               <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
@@ -960,13 +960,189 @@ export function DespensaView() {
           })}
         </div>
 
-        {/* Aviso de Desplazamiento Móvil */}
-        <div className="sm:hidden px-4 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-          <span>👈 Desliza para editar costo y precios 👉</span>
+        {/* VISTA MÓVIL: Tarjetas de Conteo y Edición de Inventario (md:hidden) */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="p-4 space-y-3">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="text-center py-12 text-slate-400 text-xs">
+              No se encontraron productos en esta categoría o con ese término de búsqueda.
+            </div>
+          ) : (
+            filteredProducts.map((p) => {
+              const edit = tableEdits[p.id];
+              const currentStock = edit ? edit.stock : p.currentStock;
+              const currentCost = edit ? edit.cost : p.costPrice;
+              const currentSell = edit ? edit.sellPrice : p.sellPrice;
+              const realMargin = calculateRealMargin(currentCost, currentSell);
+              const isChanged = Boolean(edit && edit.changed);
+              const totalRowValue = currentStock * currentCost;
+
+              return (
+                <div
+                  key={p.id}
+                  className={`p-3.5 space-y-3 transition-colors ${
+                    isChanged ? "bg-amber-50/40" : ""
+                  }`}
+                >
+                  {/* Encabezado: Icono, Nombre, Categoría, Estado y Eliminar */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="shrink-0">{getProductOrCategoryIcon(p.name, p.category?.slug)}</div>
+                      <div>
+                        <div className="font-bold text-sm text-slate-900 leading-snug">{p.name}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] text-slate-400">
+                            {p.category?.name || "Sin categoría"}
+                          </span>
+                          <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded">
+                            {p.unit === "kg" ? "Pesaje (kg)" : "Unidad"}
+                          </span>
+                          {currentStock <= 0 ? (
+                            <span className="text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                              Agotado
+                            </span>
+                          ) : currentStock <= (p.minStock || 5) ? (
+                            <span className="text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                              Bajo
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteProduct(p)}
+                      className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 shrink-0"
+                      title="Eliminar producto"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* Fila de Stock con Controles Táctiles Cómodos */}
+                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-700 block">Existencia Físico</span>
+                      <span className="text-[10px] text-slate-400">
+                        Total valor: <strong className="text-slate-700">{formatCurrency(totalRowValue)}</strong>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleTableFieldChange(
+                            p.id,
+                            "stock",
+                            Math.max(0, currentStock - (p.unit === "kg" ? 1 : 1))
+                          )
+                        }
+                        className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 flex items-center justify-center cursor-pointer text-sm shadow-2xs active:bg-slate-200"
+                        title="Disminuir"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <div className="w-20">
+                        <CleanNumberInput
+                          value={currentStock}
+                          onChange={(val) => handleTableFieldChange(p.id, "stock", val)}
+                          allowDecimals={p.unit === "kg"}
+                          className="h-8 text-right font-bold text-xs bg-white"
+                          placeholder="0"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleTableFieldChange(
+                            p.id,
+                            "stock",
+                            currentStock + (p.unit === "kg" ? 1 : 1)
+                          )
+                        }
+                        className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 flex items-center justify-center cursor-pointer text-sm shadow-2xs active:bg-slate-200"
+                        title="Aumentar"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Fila de Costo y Venta */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[10px] font-medium text-slate-500 mb-1">Costo Compra ($)</label>
+                      <CurrencyInput
+                        prefix="$"
+                        value={currentCost}
+                        onChange={(val) => handleTableFieldChange(p.id, "cost", val)}
+                        className="h-8 text-right text-xs bg-white"
+                        placeholder="0"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-bold text-slate-900">Precio Venta ($)</label>
+                        <Badge
+                          variant={realMargin >= 30 ? "success" : "destructive"}
+                          className="text-[9px] font-bold px-1.5 py-0"
+                        >
+                          {realMargin}%
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const auto = calculateDespensaPrice(currentCost, 0.3);
+                            handleTableFieldChange(p.id, "sellPrice", auto);
+                          }}
+                          className="w-8 h-8 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 flex items-center justify-center cursor-pointer border border-amber-200 shrink-0"
+                          title="Fijar 30% automáticamente"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                        </button>
+                        <CurrencyInput
+                          prefix="$"
+                          value={currentSell}
+                          onChange={(val) => handleTableFieldChange(p.id, "sellPrice", val)}
+                          className="h-8 text-right font-bold text-xs text-emerald-950 bg-emerald-50/40 border border-emerald-200 focus:bg-white w-full"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Si fue modificado: Botón Guardar fila */}
+                  {isChanged && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleSaveTableRow(p)}
+                      className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs flex items-center justify-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" />
+                      Guardar Cambios de este Producto
+                    </Button>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
 
-        {/* Tabla de Productos */}
-        <div className="overflow-x-auto touch-scroll">
+        {/* VISTA ESCRITORIO: Tabla de Productos Completa (hidden md:block) */}
+        <div className="hidden md:block overflow-x-auto touch-scroll">
           {loading ? (
             <div className="p-6 space-y-3">
               <Skeleton className="h-8 w-full" />

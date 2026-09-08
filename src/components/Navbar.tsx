@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   TrendingUp,
   Beef,
@@ -10,7 +10,14 @@ import {
   Trash2,
   Store,
   Receipt,
+  Menu,
+  X,
+  Boxes,
+  Sparkles,
+  ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { StockNotificationCenter } from "@/components/StockNotificationCenter";
 import { OfflineSyncIndicator } from "@/components/OfflineSyncIndicator";
@@ -37,7 +44,9 @@ export function Navbar({
   marginAlertCount = 0,
   stockAlertCount = 0,
 }: NavbarProps) {
-  const tabs = [
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const desktopTabs = [
     {
       id: "dashboard" as ActiveTab,
       label: "Cómo Vamos",
@@ -77,76 +86,375 @@ export function Navbar({
     },
   ];
 
+  // 4 pestañas de uso frecuente en el celular
+  const mobileNavItems = [
+    {
+      id: "pos" as ActiveTab,
+      label: "Venta",
+      icon: ShoppingCart,
+    },
+    {
+      id: "inventory" as ActiveTab,
+      label: "Inventario",
+      icon: Package,
+      alertCount: stockAlertCount > 0 ? stockAlertCount : marginAlertCount,
+    },
+    {
+      id: "dashboard" as ActiveTab,
+      label: "Inicio",
+      icon: TrendingUp,
+    },
+    {
+      id: "reports" as ActiveTab,
+      label: "Facturas",
+      icon: Receipt,
+    },
+  ];
+
+  const handleSelectTab = (tab: ActiveTab) => {
+    setActiveTab(tab);
+    setMobileMenuOpen(false);
+  };
+
+  const isMoreTabActive =
+    activeTab === "meat-batch" ||
+    activeTab === "smart-pricing" ||
+    activeTab === "waste";
+
   return (
-    <header className="sticky top-0 z-30 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6">
-        {/* Top Header */}
-        <div className="flex items-center justify-between h-14 border-b border-slate-100">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white shadow-xs shrink-0">
-              <Store className="h-4.5 w-4.5" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900 truncate">
-                  Carne & Legumbre
-                </span>
-                <Badge variant="outline" className="hidden md:inline-flex text-[10px] font-medium py-0 h-4 border-slate-200 text-slate-600">
-                  Gestión Operativa
-                </Badge>
+    <>
+      {/* Header Superior (Desktop y Móvil) */}
+      <header className="sticky top-0 z-30 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6">
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white shadow-xs shrink-0">
+                <Store className="h-4.5 w-4.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900 truncate">
+                    Carne & Legumbre
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className="hidden md:inline-flex text-[10px] font-medium py-0 h-4 border-slate-200 text-slate-600"
+                  >
+                    Gestión Operativa
+                  </Badge>
+                </div>
               </div>
             </div>
+
+            <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+              <OfflineSyncIndicator />
+              <Badge
+                variant="success"
+                className="hidden sm:inline-flex px-2.5 py-0.5 text-xs font-semibold"
+              >
+                Meta ≥ 30%
+              </Badge>
+              <StockNotificationCenter
+                onNavigateToInventory={() => handleSelectTab("inventory")}
+              />
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-            <OfflineSyncIndicator />
-            <Badge variant="success" className="hidden sm:inline-flex px-2.5 py-0.5 text-xs font-semibold">
-              Meta: Margen Real ≥ 30%
-            </Badge>
-            <StockNotificationCenter
-              onNavigateToInventory={() => setActiveTab("inventory")}
-            />
-          </div>
+          {/* Navegación Desktop (Visible en pantallas medianas y grandes >= md) */}
+          <nav className="hidden md:flex space-x-1.5 overflow-x-auto py-2 border-t border-slate-100 scrollbar-none">
+            {desktopTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleSelectTab(tab.id)}
+                  className={`relative flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap cursor-pointer shrink-0 min-h-[36px] ${
+                    isActive
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                  }`}
+                >
+                  <Icon
+                    className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-500"}`}
+                  />
+                  <span>{tab.label}</span>
+                  {tab.badge && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
+                        isActive
+                          ? "bg-slate-800 text-emerald-300"
+                          : "bg-emerald-100 text-emerald-800"
+                      }`}
+                    >
+                      {tab.badge}
+                    </span>
+                  )}
+                  {Boolean(tab.alertCount && tab.alertCount > 0) && (
+                    <Badge
+                      variant="destructive"
+                      className="h-4 px-1 text-[10px] font-bold"
+                    >
+                      {tab.alertCount}
+                    </Badge>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </div>
+      </header>
 
-        {/* Tab Navigation con Scroll Táctil Inercial */}
-        <nav className="flex space-x-1 sm:space-x-1.5 overflow-x-auto py-2 -mx-3 px-3 sm:mx-0 sm:px-0 scrollbar-none touch-scroll">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+      {/* Barra de Navegación Inferior Móvil (Thumb Zone fija en < md) */}
+      <nav
+        aria-label="Navegación móvil inferior"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] px-2 py-1.5"
+      >
+        <div className="grid grid-cols-5 gap-1 max-w-md mx-auto items-center">
+          {mobileNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
             return (
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap cursor-pointer shrink-0 min-h-[36px] ${
+                key={item.id}
+                type="button"
+                onClick={() => handleSelectTab(item.id)}
+                className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all cursor-pointer select-none ${
                   isActive
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                    ? "text-slate-900 font-bold bg-slate-100/90"
+                    : "text-slate-500 hover:text-slate-800 active:scale-95"
                 }`}
               >
-                <Icon className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-500"}`} />
-                <span>{tab.label}</span>
-                {tab.badge && (
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
-                      isActive
-                        ? "bg-slate-800 text-emerald-300"
-                        : "bg-emerald-100 text-emerald-800"
+                <div className="relative">
+                  <Icon
+                    className={`w-5 h-5 transition-transform ${
+                      isActive ? "scale-110 text-slate-900" : "text-slate-500"
                     }`}
-                  >
-                    {tab.badge}
-                  </span>
-                )}
-                {Boolean(tab.alertCount && tab.alertCount > 0) && (
-                  <Badge variant="destructive" className="h-4 px-1 text-[10px] font-bold">
-                    {tab.alertCount}
-                  </Badge>
-                )}
+                  />
+                  {Boolean(item.alertCount && item.alertCount > 0) && (
+                    <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[9px] font-black flex items-center justify-center shadow-xs">
+                      {item.alertCount}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] mt-0.5 tracking-tight truncate max-w-full">
+                  {item.label}
+                </span>
               </button>
             );
           })}
-        </nav>
-      </div>
-    </header>
+
+          {/* Botón "Más" para abrir Bottom Sheet con herramientas secundarias */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all cursor-pointer select-none ${
+              isMoreTabActive || mobileMenuOpen
+                ? "text-slate-900 font-bold bg-slate-100/90"
+                : "text-slate-500 hover:text-slate-800 active:scale-95"
+            }`}
+          >
+            <Menu
+              className={`w-5 h-5 transition-transform ${
+                isMoreTabActive || mobileMenuOpen
+                  ? "scale-110 text-slate-900"
+                  : "text-slate-500"
+              }`}
+            />
+            <span className="text-[10px] mt-0.5 tracking-tight">Más</span>
+            {isMoreTabActive && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 absolute top-1 right-3" />
+            )}
+          </button>
+        </div>
+      </nav>
+
+      {/* Drawer / Bottom Sheet Móvil "Más Opciones" */}
+      {mobileMenuOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="md:hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-200"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div
+            className="bg-white rounded-t-3xl p-5 space-y-4 max-h-[85vh] overflow-y-auto shadow-2xl border-t border-slate-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Tirador visual superior */}
+            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto" />
+
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Herramientas y Gestión
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Simuladores, mermas y auditorías especializadas
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer"
+                aria-label="Cerrar menú"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Opciones secundarias reorganizadas para el pulgar */}
+            <div className="grid grid-cols-1 gap-2.5">
+              {/* Simulador de Desposte */}
+              <button
+                type="button"
+                onClick={() => handleSelectTab("meat-batch")}
+                className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                  activeTab === "meat-batch"
+                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                    : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      activeTab === "meat-batch"
+                        ? "bg-slate-800 text-white"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    <Beef className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold flex items-center gap-1.5">
+                      <span>Simulador de Desposte</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold">
+                        ≥ 30%
+                      </span>
+                    </div>
+                    <div
+                      className={`text-[11px] ${
+                        activeTab === "meat-batch"
+                          ? "text-slate-300"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      Cálculo de rendimiento de canales y lotes
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 opacity-50" />
+              </button>
+
+              {/* Calculadora de Precios */}
+              <button
+                type="button"
+                onClick={() => handleSelectTab("smart-pricing")}
+                className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                  activeTab === "smart-pricing"
+                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                    : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      activeTab === "smart-pricing"
+                        ? "bg-slate-800 text-white"
+                        : "bg-blue-100 text-blue-700"
+                    }`}
+                  >
+                    <Calculator className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold">
+                      Calculadora de Precios
+                    </div>
+                    <div
+                      className={`text-[11px] ${
+                        activeTab === "smart-pricing"
+                          ? "text-slate-300"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      Simula precios asegurando margen real del 30%
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 opacity-50" />
+              </button>
+
+              {/* Control de Mermas */}
+              <button
+                type="button"
+                onClick={() => handleSelectTab("waste")}
+                className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                  activeTab === "waste"
+                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                    : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      activeTab === "waste"
+                        ? "bg-slate-800 text-white"
+                        : "bg-rose-100 text-rose-700"
+                    }`}
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold">
+                      Control de Mermas
+                    </div>
+                    <div
+                      className={`text-[11px] ${
+                        activeTab === "waste"
+                          ? "text-slate-300"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      Registro de pérdidas por descarte o maduración
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 opacity-50" />
+              </button>
+
+              {/* Despensa Privada (/despensa) */}
+              <Link
+                href="/despensa"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3.5 rounded-xl border bg-indigo-50/50 hover:bg-indigo-100/70 border-indigo-200 text-slate-800 flex items-center justify-between transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                    <Boxes className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                      <span>Despensa Privada</span>
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] py-0 px-1 border-indigo-300 text-indigo-700 bg-white"
+                      >
+                        <ShieldCheck className="w-2.5 h-2.5 mr-0.5" />
+                        Privado
+                      </Badge>
+                    </div>
+                    <div className="text-[11px] text-indigo-800/80">
+                      Conteo físico y fijación automática Costo / 0.7
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-indigo-400" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
+

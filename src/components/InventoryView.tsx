@@ -378,13 +378,153 @@ export function InventoryView() {
         </div>
       </div>
 
-      {/* Tabla de Productos */}
-      <Card className="shadow-xs overflow-hidden">
-        {/* Aviso de Desplazamiento Móvil */}
-        <div className="sm:hidden px-4 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-          <span>👈 Desliza para ver margen, costo y acciones 👉</span>
-        </div>
-        <CardContent className="p-0 overflow-x-auto touch-scroll">
+      {/* Contenedor de Productos: Tarjetas en Móvil (< md) y Tabla en Desktop (>= md) */}
+      
+      {/* Vista Móvil: Tarjetas Táctiles Adaptativas */}
+      <div className="md:hidden space-y-2.5">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-5 w-16" />
+              </div>
+              <Skeleton className="h-14 w-full rounded-lg" />
+              <div className="flex justify-end gap-2">
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-8 w-20" />
+              </div>
+            </Card>
+          ))
+        ) : filteredProducts.length === 0 ? (
+          <Card className="p-8 text-center text-xs text-slate-400">
+            No se encontraron productos con los criterios de búsqueda.
+          </Card>
+        ) : (
+          filteredProducts.map((product) => {
+            const isOutOfStock = product.currentStock <= 0;
+            const isLow =
+              product.currentStock > 0 && product.currentStock <= product.minStock;
+
+            return (
+              <div
+                key={product.id}
+                className={`p-3.5 rounded-xl border transition-all shadow-xs space-y-2.5 ${
+                  isOutOfStock
+                    ? "bg-rose-50/25 border-rose-200"
+                    : isLow
+                    ? "bg-amber-50/25 border-amber-200"
+                    : "bg-white border-slate-200"
+                }`}
+              >
+                {/* Cabecera de la Tarjeta */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      {isOutOfStock && (
+                        <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0" />
+                      )}
+                      {isLow && (
+                        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                      )}
+                      <span className="text-sm font-bold text-slate-900 truncate block">
+                        {product.name}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {product.category.name} • {product.code || "Sin código"}
+                    </span>
+                  </div>
+
+                  {/* Estado de Stock */}
+                  <div className="shrink-0">
+                    {isOutOfStock ? (
+                      <Badge variant="destructive" className="text-[10px] font-bold">
+                        Agotado (0)
+                      </Badge>
+                    ) : isLow ? (
+                      <Badge variant="warning" className="text-[10px] font-bold">
+                        Bajo: {product.currentStock} {product.unit}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs font-mono font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        {product.unit === "kg"
+                          ? formatWeight(product.currentStock)
+                          : `${product.currentStock} ${product.unit}`}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Métricas Financieras en 3 Columnas */}
+                <div className="grid grid-cols-3 gap-2 py-2 px-2.5 bg-slate-50/80 rounded-lg border border-slate-100 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                      Venta
+                    </span>
+                    <strong className="text-slate-900 font-mono text-sm block">
+                      {formatCurrency(product.sellPrice)}
+                    </strong>
+                    <span className="text-[10px] text-slate-400">/{product.unit}</span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                      Costo Base
+                    </span>
+                    <span className="text-slate-700 font-mono text-xs block">
+                      {formatCurrency(product.costPrice)}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Merma {product.estimatedWastePercent}%
+                    </span>
+                  </div>
+
+                  <div className="text-right flex flex-col items-end justify-center">
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-0.5">
+                      Margen Real
+                    </span>
+                    <Badge
+                      variant={product.realMargin >= 30 ? "success" : "destructive"}
+                      className="text-[10px] font-bold"
+                    >
+                      {product.realMargin}%
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Acciones para el Pulgar (Botones de altura adecuada >= 36px) */}
+                <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
+                  {product.isBelowTarget && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleApply30Percent(product)}
+                      className="h-9 px-3 text-xs font-bold text-amber-800 border-amber-300 bg-amber-50 hover:bg-amber-100 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-600" />
+                      Fijar 30% ({formatCurrency(product.suggestedPrice30)})
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingProduct(product)}
+                    className="h-9 px-3 text-xs font-semibold text-slate-700 hover:text-slate-950 border-slate-200 cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5 mr-1 text-slate-500" />
+                    Editar
+                  </Button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Vista Desktop: Tabla Completa de 8 Columnas (>= md) */}
+      <Card className="hidden md:block shadow-xs overflow-hidden">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>

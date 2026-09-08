@@ -582,130 +582,251 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto touch-scroll">
-              <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[200px]">Corte / Producto</TableHead>
-                  <TableHead className="text-right">Kg</TableHead>
-                  <TableHead className="text-right">Merma (Kg)</TableHead>
-                  <TableHead className="text-right">Costo/Kg</TableHead>
-                  <TableHead className="text-right">Sugerido (30%)</TableHead>
-                  <TableHead className="text-right font-bold text-slate-900">Precio Venta ($X)</TableHead>
-                  <TableHead className="text-right">Subtotal</TableHead>
-                  <TableHead className="text-center">Margen</TableHead>
-                  <TableHead className="text-center w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {cuts.map((cut) => {
+            <>
+              {/* VISTA MÓVIL: Tarjetas de Cortes (md:hidden) */}
+              <div className="md:hidden p-3 space-y-3">
+                {cuts.map((cut, idx) => {
                   const suggested = calculatePriceForTargetMargin(cut.costAttributed, targetMargin, 0);
                   const margin = calculateRealMargin(cut.costAttributed, cut.actualSellPrice);
                   const subtotal = cut.weightKg * cut.actualSellPrice;
 
                   return (
-                    <TableRow key={cut.id}>
-                      <TableCell className="font-medium">
-                        <select
-                          value={cut.productId}
-                          onChange={(e) => handleCutChange(cut.id, "productId", e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none"
-                        >
-                          <option value="">-- Seleccionar producto --</option>
-                          {products
-                            .filter(
-                              (p: any) =>
-                                p.isMeatCut ||
-                                p.category?.slug?.includes("res") ||
-                                p.category?.slug?.includes("cerdo") ||
-                                p.category?.slug?.includes("pollo") ||
-                                p.category?.type === "CARNICERIA"
-                            )
-                            .map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name}
-                              </option>
-                            ))}
-                        </select>
-                        {!cut.productId && (
-                          <input
-                            type="text"
-                            value={cut.name}
-                            onChange={(e) => handleCutChange(cut.id, "name", e.target.value)}
-                            className="mt-1 w-full text-xs text-slate-500 border-b border-slate-200 focus:outline-none"
-                            placeholder="Nombre corte"
-                          />
-                        )}
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <CleanNumberInput
-                          value={cut.weightKg}
-                          onChange={(val) => handleCutChange(cut.id, "weightKg", val)}
-                          className="w-16 px-1.5 py-1 text-right text-xs font-semibold"
-                          placeholder="0"
-                        />
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <CleanNumberInput
-                          value={cut.wasteKg}
-                          onChange={(val) => handleCutChange(cut.id, "wasteKg", val)}
-                          className="w-14 px-1.5 py-1 text-right text-xs text-slate-400"
-                          placeholder="0"
-                        />
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <CurrencyInput
-                          value={cut.costAttributed}
-                          onChange={(val) => handleCutChange(cut.id, "costAttributed", val)}
-                          className="w-24 px-1.5 py-1 text-right text-xs"
-                          placeholder="0"
-                        />
-                      </TableCell>
-
-                      <TableCell className="text-right text-xs text-slate-400 font-mono">
-                        {formatCurrency(suggested)}
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <CurrencyInput
-                          value={cut.actualSellPrice}
-                          onChange={(val) => handleCutChange(cut.id, "actualSellPrice", val)}
-                          className="w-24 px-1.5 py-1 text-right text-xs font-bold text-slate-900 bg-slate-50 focus:bg-white"
-                          placeholder="0"
-                        />
-                      </TableCell>
-
-                      <TableCell className="text-right font-bold text-xs text-slate-900">
-                        {formatCurrency(subtotal)}
-                      </TableCell>
-
-                      <TableCell className="text-center">
-                        <Badge
-                          variant={margin >= 30 ? "success" : "destructive"}
-                          className="text-[10px] font-bold px-1.5 py-0.2"
-                        >
-                          {margin}%
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell className="text-center">
+                    <div key={cut.id} className="bg-white border border-slate-200 rounded-xl p-3 space-y-3 shadow-xs">
+                      {/* Header: Producto y Eliminar */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                            Corte #{idx + 1}
+                          </label>
+                          <select
+                            value={cut.productId}
+                            onChange={(e) => handleCutChange(cut.id, "productId", e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:bg-white"
+                          >
+                            <option value="">-- Seleccionar producto --</option>
+                            {products
+                              .filter(
+                                (p: any) =>
+                                  p.isMeatCut ||
+                                  p.category?.slug?.includes("res") ||
+                                  p.category?.slug?.includes("cerdo") ||
+                                  p.category?.slug?.includes("pollo") ||
+                                  p.category?.type === "CARNICERIA"
+                              )
+                              .map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name}
+                                </option>
+                              ))}
+                          </select>
+                          {!cut.productId && (
+                            <input
+                              type="text"
+                              value={cut.name}
+                              onChange={(e) => handleCutChange(cut.id, "name", e.target.value)}
+                              className="mt-1.5 w-full text-xs text-slate-700 bg-slate-50 border border-dashed border-slate-200 rounded px-2 py-1 focus:outline-none focus:bg-white"
+                              placeholder="O escribe nombre del corte..."
+                            />
+                          )}
+                        </div>
                         <button
                           onClick={() => handleRemoveCut(cut.id)}
-                          className="text-slate-400 hover:text-red-600 cursor-pointer p-1"
+                          className="p-2 text-slate-400 hover:text-red-600 rounded-lg active:bg-red-50 transition-colors"
                           title="Eliminar corte"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+
+                      {/* Pesos: Vendible y Merma */}
+                      <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <div>
+                          <label className="block text-[10px] font-medium text-slate-500 mb-1">Peso Vendible (Kg)</label>
+                          <CleanNumberInput
+                            value={cut.weightKg}
+                            onChange={(val) => handleCutChange(cut.id, "weightKg", val)}
+                            className="w-full px-2 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-md text-right"
+                            placeholder="0"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-medium text-slate-500 mb-1">Merma (Kg)</label>
+                          <CleanNumberInput
+                            value={cut.wasteKg}
+                            onChange={(val) => handleCutChange(cut.id, "wasteKg", val)}
+                            className="w-full px-2 py-1.5 text-xs text-slate-500 bg-white border border-slate-200 rounded-md text-right"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Costo y Venta */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <label className="block text-[10px] font-medium text-slate-500 mb-1">Costo Atribuido ($/Kg)</label>
+                          <CurrencyInput
+                            value={cut.costAttributed}
+                            onChange={(val) => handleCutChange(cut.id, "costAttributed", val)}
+                            className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-md text-right"
+                            placeholder="0"
+                          />
+                          <div className="text-[10px] text-slate-400 mt-1">
+                            Sug. 30%: <span className="font-mono font-medium text-slate-600">{formatCurrency(suggested)}</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[10px] font-bold text-slate-900">Precio Venta ($)</label>
+                            <Badge
+                              variant={margin >= 30 ? "success" : "destructive"}
+                              className="text-[9px] font-bold px-1.5 py-0"
+                            >
+                              {margin}%
+                            </Badge>
+                          </div>
+                          <CurrencyInput
+                            value={cut.actualSellPrice}
+                            onChange={(val) => handleCutChange(cut.id, "actualSellPrice", val)}
+                            className="w-full px-2 py-1.5 text-xs font-bold text-slate-900 bg-emerald-50/50 border border-emerald-200 rounded-md text-right focus:bg-white"
+                            placeholder="0"
+                          />
+                          <div className="text-[10px] text-slate-500 mt-1 text-right">
+                            Subtotal: <strong className="text-slate-900">{formatCurrency(subtotal)}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </div>
+              </div>
+
+              {/* VISTA ESCRITORIO: Tabla Completa (hidden md:block) */}
+              <div className="hidden md:block overflow-x-auto touch-scroll">
+                <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[200px]">Corte / Producto</TableHead>
+                    <TableHead className="text-right">Kg</TableHead>
+                    <TableHead className="text-right">Merma (Kg)</TableHead>
+                    <TableHead className="text-right">Costo/Kg</TableHead>
+                    <TableHead className="text-right">Sugerido (30%)</TableHead>
+                    <TableHead className="text-right font-bold text-slate-900">Precio Venta ($X)</TableHead>
+                    <TableHead className="text-right">Subtotal</TableHead>
+                    <TableHead className="text-center">Margen</TableHead>
+                    <TableHead className="text-center w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {cuts.map((cut) => {
+                    const suggested = calculatePriceForTargetMargin(cut.costAttributed, targetMargin, 0);
+                    const margin = calculateRealMargin(cut.costAttributed, cut.actualSellPrice);
+                    const subtotal = cut.weightKg * cut.actualSellPrice;
+
+                    return (
+                      <TableRow key={cut.id}>
+                        <TableCell className="font-medium">
+                          <select
+                            value={cut.productId}
+                            onChange={(e) => handleCutChange(cut.id, "productId", e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none"
+                          >
+                            <option value="">-- Seleccionar producto --</option>
+                            {products
+                              .filter(
+                                (p: any) =>
+                                  p.isMeatCut ||
+                                  p.category?.slug?.includes("res") ||
+                                  p.category?.slug?.includes("cerdo") ||
+                                  p.category?.slug?.includes("pollo") ||
+                                  p.category?.type === "CARNICERIA"
+                              )
+                              .map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name}
+                                </option>
+                              ))}
+                          </select>
+                          {!cut.productId && (
+                            <input
+                              type="text"
+                              value={cut.name}
+                              onChange={(e) => handleCutChange(cut.id, "name", e.target.value)}
+                              className="mt-1 w-full text-xs text-slate-500 border-b border-slate-200 focus:outline-none"
+                              placeholder="Nombre corte"
+                            />
+                          )}
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <CleanNumberInput
+                            value={cut.weightKg}
+                            onChange={(val) => handleCutChange(cut.id, "weightKg", val)}
+                            className="w-16 px-1.5 py-1 text-right text-xs font-semibold"
+                            placeholder="0"
+                          />
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <CleanNumberInput
+                            value={cut.wasteKg}
+                            onChange={(val) => handleCutChange(cut.id, "wasteKg", val)}
+                            className="w-14 px-1.5 py-1 text-right text-xs text-slate-400"
+                            placeholder="0"
+                          />
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <CurrencyInput
+                            value={cut.costAttributed}
+                            onChange={(val) => handleCutChange(cut.id, "costAttributed", val)}
+                            className="w-24 px-1.5 py-1 text-right text-xs"
+                            placeholder="0"
+                          />
+                        </TableCell>
+
+                        <TableCell className="text-right text-xs text-slate-400 font-mono">
+                          {formatCurrency(suggested)}
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <CurrencyInput
+                            value={cut.actualSellPrice}
+                            onChange={(val) => handleCutChange(cut.id, "actualSellPrice", val)}
+                            className="w-24 px-1.5 py-1 text-right text-xs font-bold text-slate-900 bg-slate-50 focus:bg-white"
+                            placeholder="0"
+                          />
+                        </TableCell>
+
+                        <TableCell className="text-right font-bold text-xs text-slate-900">
+                          {formatCurrency(subtotal)}
+                        </TableCell>
+
+                        <TableCell className="text-center">
+                          <Badge
+                            variant={margin >= 30 ? "success" : "destructive"}
+                            className="text-[10px] font-bold px-1.5 py-0.2"
+                          >
+                            {margin}%
+                          </Badge>
+                        </TableCell>
+
+                        <TableCell className="text-center">
+                          <button
+                            onClick={() => handleRemoveCut(cut.id)}
+                            className="text-slate-400 hover:text-red-600 cursor-pointer p-1"
+                            title="Eliminar corte"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
 
           {errorMessage && (
@@ -729,12 +850,12 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
         </CardContent>
 
         {cuts.length > 0 && (
-          <CardFooter className="p-5 flex justify-between border-t border-slate-100">
+          <CardFooter className="p-4 sm:p-5 flex flex-col-reverse sm:flex-row sm:justify-between gap-3 border-t border-slate-100">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowSaveTemplateModal(true)}
-              className="text-xs"
+              className="text-xs w-full sm:w-auto h-10 sm:h-9"
             >
               <Bookmark className="w-3.5 h-3.5 mr-1.5" />
               Guardar este lote como Favorito
@@ -744,7 +865,7 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
               onClick={handleSaveBatch}
               disabled={isSaving}
               size="default"
-              className="text-xs font-semibold"
+              className="text-xs font-semibold w-full sm:w-auto h-11 sm:h-9"
             >
               <Save className="w-4 h-4 mr-1.5" />
               {isSaving ? "Guardando..." : "Guardar Pedido e Ingresar al Inventario"}

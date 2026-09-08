@@ -46,12 +46,12 @@ export default function DespensaPage() {
       </header>
 
       {/* Contenedor Principal Independiente */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 pb-24 sm:p-6 lg:p-8">
         <DespensaView />
       </main>
 
       {/* Footer Minimalista */}
-      <footer className="border-t border-slate-200/80 bg-white py-4 text-xs text-slate-500 print:hidden">
+      <footer className="border-t border-slate-200/80 bg-white py-4 text-xs text-slate-500 print:hidden hidden sm:block">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>
             Carne & Legumbre • Panel Privado de Despensa y Conteo Físico
