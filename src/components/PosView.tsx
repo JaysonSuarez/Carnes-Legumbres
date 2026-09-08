@@ -39,6 +39,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { InvoiceDialog, SaleInvoiceData } from "@/components/InvoiceDialog";
 import { dispatchStockToast } from "@/components/StockNotificationCenter";
 import {
+  QuickSelectorItem,
+  calculateWeightFromMoney,
+  getColdStartSelectors,
+} from "@/lib/quickSelectors";
+import {
   isOnline,
   enqueueAction,
   saveProductsCache,
@@ -271,6 +276,34 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [mobilePosTab, setMobilePosTab] = useState<"catalog" | "cart">("catalog");
 
+  // Estado para Selectores Rápidos Inteligentes
+  const [quickSelectorsMap, setQuickSelectorsMap] = useState<Record<string, QuickSelectorItem[]>>({});
+
+  const loadQuickSelectors = () => {
+    try {
+      const cached = localStorage.getItem("carne_legumbre_quick_selectors");
+      if (cached) {
+        setQuickSelectorsMap(JSON.parse(cached));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    fetch("/api/pos/quick-selectors")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data) {
+          setQuickSelectorsMap(data.data);
+          try {
+            localStorage.setItem("carne_legumbre_quick_selectors", JSON.stringify(data.data));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      })
+      .catch((err) => console.warn("Error loading quick selectors:", err));
+  };
+
   const loadProducts = () => {
     fetch("/api/products")
       .then((res) => res.json())
@@ -292,7 +325,72 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
 
   useEffect(() => {
     loadProducts();
+    loadQuickSelectors();
   }, []);
+
+  const handleQuickAdd = (product: Product, selector: QuickSelectorItem, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+
+    let addedQty = 0;
+    if (selector.type === "money") {
+      addedQty = calculateWeightFromMoney(selector.value, product.sellPrice);
+    } else {
+      addedQty = selector.value;
+    }
+
+    if (addedQty <= 0) return;
+
+    if (product.currentStock <= 0) {
+      dispatchStockToast({
+        title: `Aviso: ${product.name} en 0`,
+        message: `Estás registrando un producto con 0 existencias físicas en el sistema.`,
+        type: "destructive",
+        isCritical: true,
+      });
+    }
+
+    const existingIndex = cart.findIndex((i) => i.product.id === product.id);
+
+    if (existingIndex > -1) {
+      const updatedCart = [...cart];
+      const item = updatedCart[existingIndex];
+      const newQty = Number((item.quantity + addedQty).toFixed(3));
+      const subtotal = newQty * item.unitPrice;
+      const costSubtotal = newQty * item.product.costPrice;
+      const profit = subtotal - costSubtotal;
+      const realMarginPercent = calculateRealMargin(item.product.costPrice, item.unitPrice);
+
+      updatedCart[existingIndex] = {
+        ...item,
+        quantity: newQty,
+        subtotal,
+        costSubtotal,
+        profit,
+        realMarginPercent,
+      };
+      setCart(updatedCart);
+    } else {
+      const subtotal = selector.type === "money" ? selector.value : addedQty * product.sellPrice;
+      const costSubtotal = addedQty * product.costPrice;
+      const profit = subtotal - costSubtotal;
+      const realMarginPercent = calculateRealMargin(product.costPrice, product.sellPrice);
+
+      setCart([
+        ...cart,
+        {
+          product,
+          quantity: addedQty,
+          unitPrice: product.sellPrice,
+          subtotal,
+          costSubtotal,
+          profit,
+          realMarginPercent,
+        },
+      ]);
+    }
+  };
 
   const handleAddToCart = (product: Product) => {
     // Alerta interactiva preventiva si el producto está agotado o bajo en stock
@@ -491,6 +589,7 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
 
       setCart([]);
       loadProducts();
+      loadQuickSelectors();
       setMobilePosTab("catalog");
       if (onSaleCompleted) onSaleCompleted();
     } catch (err: any) {
@@ -675,13 +774,20 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
                         const isOutOfStock = p.currentStock <= 0;
                         const isLowStock =
                           p.currentStock > 0 && p.currentStock <= (p.minStock || 5);
+                        
+                        const selectors = quickSelectorsMap[p.id] || getColdStartSelectors({
+                          id: p.id,
+                          name: p.name,
+                          unit: p.unit,
+                          sellPrice: p.sellPrice,
+                          categoryName: p.category?.name,
+                        });
 
                         return (
-                          <button
+                          <div
                             key={p.id}
-                            type="button"
                             onClick={() => handleAddToCart(p)}
-                            className={`p-3 rounded-lg text-left transition-all flex flex-col justify-between shadow-xs cursor-pointer group relative border ${
+                            className={`p-3 rounded-lg text-left transition-all flex flex-col justify-between shadow-xs cursor-pointer group relative border select-none ${
                               isOutOfStock
                                 ? "bg-rose-50/20 border-rose-200 hover:border-rose-400 hover:bg-rose-50/40"
                                 : isLowStock
@@ -720,18 +826,51 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
                               </div>
                             </div>
 
-                            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                            {/* Selectores Rápidos Inteligentes por Comportamiento de Compra */}
+                            {selectors && selectors.length > 0 && (
+                              <div className="mt-2 pt-1.5 border-t border-slate-100/80 flex flex-wrap gap-1">
+                                {selectors.map((sel) => (
+                                  <button
+                                    key={sel.id}
+                                    type="button"
+                                    onClick={(e) => handleQuickAdd(p, sel, e)}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold tracking-tight transition-all cursor-pointer shadow-2xs active:scale-95 border ${
+                                      sel.type === "money"
+                                        ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-600 hover:text-white"
+                                        : "bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-900 hover:text-white"
+                                    }`}
+                                    title={
+                                      sel.type === "money"
+                                        ? `Comprar ${sel.label} (equivale a ${calculateWeightFromMoney(sel.value, p.sellPrice)} ${p.unit})`
+                                        : `Comprar ${sel.label}`
+                                    }
+                                  >
+                                    {sel.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between">
                               <div>
                                 <span className="text-xs font-black text-slate-900 block font-mono">
                                   {formatCurrency(p.sellPrice)}
                                 </span>
                                 <span className="text-[10px] text-slate-400 font-medium">/{p.unit}</span>
                               </div>
-                              <span className="w-5 h-5 rounded-full bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center text-slate-600 transition-colors">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddToCart(p);
+                                }}
+                                className="w-6 h-6 rounded-md bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
+                                title="Agregar al carrito"
+                              >
                                 <Plus className="w-3 h-3" />
-                              </span>
+                              </button>
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>

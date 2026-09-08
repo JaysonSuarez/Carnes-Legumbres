@@ -214,3 +214,135 @@ export function calculateDespensaPrice(cost: number, marginTarget = 0.3): number
   const rawPrice = cost / divisor;
   return Math.ceil(rawPrice / 100) * 100;
 }
+
+export interface CattleCutInput {
+  id: string;
+  name: string;
+  weightKg: number;
+  sellPrice: number;
+  wasteKg?: number;
+}
+
+export interface CattleCutAttribution {
+  id: string;
+  name: string;
+  weightKg: number;
+  sellPrice: number;
+  potentialRevenue: number;
+  valueSharePercent: number;
+  totalAttributedCost: number;
+  attributedCostPerKg: number;
+  profit: number;
+  realMarginPercent: number;
+}
+
+export interface CattleYieldResult {
+  liveWeightKg: number;
+  pricePerKgLive: number;
+  totalAnimalCost: number;
+  totalAprovechableKg: number;
+  wasteKg: number;
+  wastePercent: number;
+  yieldPercent: number;
+  averageCostPerAprovechableKg: number;
+  totalPotentialRevenue: number;
+  totalPotentialProfit: number;
+  totalPotentialMarginPercent: number;
+  cutAttributions: CattleCutAttribution[];
+  isCoherent: boolean;
+  validationMessage?: string;
+}
+
+/**
+ * Calculador de rendimiento y costo real de una res (Cattle Yield & Cost Calculator)
+ * Distribuye el costo del animal entre los cortes por valor relativo de venta (Relative Sales Value Method).
+ */
+export function calculateCattleYield(
+  liveWeightKg: number,
+  pricePerKgLive: number,
+  cuts: CattleCutInput[]
+): CattleYieldResult {
+  const totalAnimalCost = Math.round(liveWeightKg * pricePerKgLive);
+  const totalAprovechableKg = Number(
+    cuts.reduce((sum, c) => sum + (c.weightKg || 0), 0).toFixed(2)
+  );
+
+  const wasteKg = Number(Math.max(0, liveWeightKg - totalAprovechableKg).toFixed(2));
+  const wastePercent =
+    liveWeightKg > 0 ? Number(((wasteKg / liveWeightKg) * 100).toFixed(1)) : 0;
+  const yieldPercent =
+    liveWeightKg > 0 ? Number(((totalAprovechableKg / liveWeightKg) * 100).toFixed(1)) : 0;
+
+  const averageCostPerAprovechableKg =
+    totalAprovechableKg > 0 ? Math.round(totalAnimalCost / totalAprovechableKg) : 0;
+
+  // 1. Calcular el valor potencial de venta de cada producto y total
+  let totalPotentialRevenue = 0;
+  const cutRevenues = cuts.map((c) => {
+    const rev = (c.weightKg || 0) * (c.sellPrice || 0);
+    totalPotentialRevenue += rev;
+    return { ...c, potentialRevenue: rev };
+  });
+
+  // 2. Costeo por valor relativo de venta
+  const cutAttributions: CattleCutAttribution[] = cutRevenues.map((c) => {
+    const valueShare =
+      totalPotentialRevenue > 0
+        ? c.potentialRevenue / totalPotentialRevenue
+        : totalAprovechableKg > 0
+        ? (c.weightKg || 0) / totalAprovechableKg
+        : 0;
+
+    const totalAttributedCost = Math.round(totalAnimalCost * valueShare);
+    const attributedCostPerKg =
+      (c.weightKg || 0) > 0 ? Math.round(totalAttributedCost / c.weightKg) : 0;
+
+    const profit = Math.round(c.potentialRevenue - totalAttributedCost);
+    const realMarginPercent = calculateRealMargin(attributedCostPerKg, c.sellPrice);
+
+    return {
+      id: c.id,
+      name: c.name,
+      weightKg: c.weightKg,
+      sellPrice: c.sellPrice,
+      potentialRevenue: Math.round(c.potentialRevenue),
+      valueSharePercent: Number((valueShare * 100).toFixed(1)),
+      totalAttributedCost,
+      attributedCostPerKg,
+      profit,
+      realMarginPercent,
+    };
+  });
+
+  const totalPotentialProfit = Math.round(totalPotentialRevenue - totalAnimalCost);
+  const totalPotentialMarginPercent =
+    totalPotentialRevenue > 0 ? calculateRealMargin(totalAnimalCost, totalPotentialRevenue) : 0;
+
+  let isCoherent = true;
+  let validationMessage: string | undefined = undefined;
+
+  if (liveWeightKg > 0 && totalAprovechableKg > liveWeightKg) {
+    isCoherent = false;
+    validationMessage = `El peso aprovechable (${totalAprovechableKg} kg) no puede superar el peso vivo del animal (${liveWeightKg} kg).`;
+  } else if (liveWeightKg > 0 && totalAprovechableKg === 0 && cuts.length > 0) {
+    isCoherent = false;
+    validationMessage = "Ingresa los kilos obtenidos en los cortes de desposte.";
+  }
+
+  return {
+    liveWeightKg,
+    pricePerKgLive,
+    totalAnimalCost,
+    totalAprovechableKg,
+    wasteKg,
+    wastePercent,
+    yieldPercent,
+    averageCostPerAprovechableKg,
+    totalPotentialRevenue: Math.round(totalPotentialRevenue),
+    totalPotentialProfit,
+    totalPotentialMarginPercent,
+    cutAttributions,
+    isCoherent,
+    validationMessage,
+  };
+}
