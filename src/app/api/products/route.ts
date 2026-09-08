@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase, genId } from "@/lib/supabase";
 import { calculateRealMargin, calculatePriceForTargetMargin } from "@/lib/finance";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
@@ -8,26 +10,24 @@ export async function GET(request: Request) {
     const category = searchParams.get("category");
     const meatOnly = searchParams.get("meatOnly");
 
-    const where: Record<string, unknown> = {};
+    let query = supabase
+      .from("cl_products")
+      .select("*, category:cl_categories(*)");
+
     if (category) {
-      where.categoryId = category;
+      query = query.eq("categoryId", category);
     }
     if (meatOnly === "true") {
-      where.isMeatCut = true;
+      query = query.eq("isMeatCut", true);
     }
 
-    const products = await prisma.product.findMany({
-      where,
-      include: {
-        category: true,
-      },
-      orderBy: [
-        { category: { name: "asc" } },
-        { name: "asc" },
-      ],
-    });
+    const { data: products, error } = await query.order("name", { ascending: true });
 
-    const enriched = products.map((p) => {
+    if (error) {
+      throw error;
+    }
+
+    const enriched = (products || []).map((p: any) => {
       const realMargin = calculateRealMargin(p.costPrice, p.sellPrice);
       const suggestedPrice30 = calculatePriceForTargetMargin(
         p.costPrice,
@@ -82,15 +82,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // Si no se proporcionó precio de venta o es 0, sugerir el que cumple la meta del 30%
-    const finalSellPrice = sellPrice > 0
-      ? Number(sellPrice)
-      : calculatePriceForTargetMargin(Number(costPrice), Number(targetMarginPercent), Number(estimatedWastePercent));
+    const finalSellPrice =
+      sellPrice > 0
+        ? Number(sellPrice)
+        : calculatePriceForTargetMargin(
+            Number(costPrice),
+            Number(targetMarginPercent),
+            Number(estimatedWastePercent)
+          );
 
-    const product = await prisma.product.create({
-      data: {
+    const id = genId("prod");
+
+    const { data: product, error } = await supabase
+      .from("cl_products")
+      .insert({
+        id,
         name,
-        code: code || undefined,
+        code: code || null,
         categoryId,
         unit,
         costPrice: Number(costPrice),
@@ -100,11 +108,13 @@ export async function POST(request: Request) {
         currentStock: Number(currentStock),
         minStock: Number(minStock),
         isMeatCut: Boolean(isMeatCut),
-      },
-      include: {
-        category: true,
-      },
-    });
+      })
+      .select("*, category:cl_categories(*)")
+      .single();
+
+    if (error) {
+      throw error;
+    }
 
     return NextResponse.json({ success: true, data: product });
   } catch (error) {
@@ -128,21 +138,33 @@ export async function PUT(request: Request) {
       );
     }
 
-    const updated = await prisma.product.update({
-      where: { id },
-      data: {
-        ...(data.name && { name: data.name }),
-        ...(data.unit && { unit: data.unit }),
-        ...(data.categoryId && { categoryId: data.categoryId }),
-        ...(data.costPrice !== undefined && { costPrice: Number(data.costPrice) }),
-        ...(data.sellPrice !== undefined && { sellPrice: Number(data.sellPrice) }),
-        ...(data.currentStock !== undefined && { currentStock: Number(data.currentStock) }),
-        ...(data.estimatedWastePercent !== undefined && { estimatedWastePercent: Number(data.estimatedWastePercent) }),
-        ...(data.targetMarginPercent !== undefined && { targetMarginPercent: Number(data.targetMarginPercent) }),
-        ...(data.minStock !== undefined && { minStock: Number(data.minStock) }),
-      },
-      include: { category: true },
-    });
+    const updateData: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.code !== undefined) updateData.code = data.code || null;
+    if (data.unit !== undefined) updateData.unit = data.unit;
+    if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
+    if (data.costPrice !== undefined) updateData.costPrice = Number(data.costPrice);
+    if (data.sellPrice !== undefined) updateData.sellPrice = Number(data.sellPrice);
+    if (data.currentStock !== undefined) updateData.currentStock = Number(data.currentStock);
+    if (data.estimatedWastePercent !== undefined)
+      updateData.estimatedWastePercent = Number(data.estimatedWastePercent);
+    if (data.targetMarginPercent !== undefined)
+      updateData.targetMarginPercent = Number(data.targetMarginPercent);
+    if (data.minStock !== undefined) updateData.minStock = Number(data.minStock);
+    if (data.isMeatCut !== undefined) updateData.isMeatCut = Boolean(data.isMeatCut);
+
+    const { data: updated, error } = await supabase
+      .from("cl_products")
+      .update(updateData)
+      .eq("id", id)
+      .select("*, category:cl_categories(*)")
+      .single();
+
+    if (error) {
+      throw error;
+    }
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
@@ -166,15 +188,20 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await prisma.product.delete({
-      where: { id },
-    });
+    const { error } = await supabase.from("cl_products").delete().eq("id", id);
+
+    if (error) {
+      throw error;
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting product:", error);
     return NextResponse.json(
-      { success: false, error: "No se puede eliminar un producto con ventas o lotes asociados" },
+      {
+        success: false,
+        error: "No se puede eliminar un producto con ventas o lotes asociados",
+      },
       { status: 500 }
     );
   }

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
+
+export const dynamic = "force-dynamic";
 
 const DEMO_STOCKS: Record<string, number> = {
   "lomo fino de res": 25,
@@ -28,9 +30,16 @@ export async function POST(request: Request) {
 
     if (action === "empty") {
       // Establecer todas las existencias en 0
-      await prisma.product.updateMany({
-        data: { currentStock: 0 },
-      });
+      const { data: products } = await supabase.from("cl_products").select("id");
+      if (products) {
+        for (const p of products) {
+          await supabase
+            .from("cl_products")
+            .update({ currentStock: 0, updatedAt: new Date().toISOString() })
+            .eq("id", p.id);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         message: "Inventario establecido en 0 exitosamente",
@@ -39,15 +48,21 @@ export async function POST(request: Request) {
 
     if (action === "fill") {
       // Cargar stock de demostración
-      const products = await prisma.product.findMany();
-      for (const p of products) {
-        const cleanName = p.name.toLowerCase().trim();
-        const demoQty = DEMO_STOCKS[cleanName] ?? (p.unit === "kg" ? 20 : 12);
-        await prisma.product.update({
-          where: { id: p.id },
-          data: { currentStock: demoQty },
-        });
+      const { data: products } = await supabase.from("cl_products").select("*");
+      if (products) {
+        for (const p of products) {
+          const cleanName = p.name.toLowerCase().trim();
+          const demoQty = DEMO_STOCKS[cleanName] ?? (p.unit === "kg" ? 20 : 12);
+          await supabase
+            .from("cl_products")
+            .update({
+              currentStock: demoQty,
+              updatedAt: new Date().toISOString(),
+            })
+            .eq("id", p.id);
+        }
       }
+
       return NextResponse.json({
         success: true,
         message: "Stock de demostración cargado exitosamente",

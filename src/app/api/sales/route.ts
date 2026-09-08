@@ -1,21 +1,28 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase, genId } from "@/lib/supabase";
 import { calculateRealMargin } from "@/lib/finance";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const sales = await prisma.sale.findMany({
-      take: 50,
-      orderBy: { date: "desc" },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
-    return NextResponse.json({ success: true, data: sales });
+    const { data: sales, error } = await supabase
+      .from("cl_sales")
+      .select(`
+        *,
+        items:cl_sale_items(
+          *,
+          product:cl_products(*)
+        )
+      `)
+      .order("date", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json({ success: true, data: sales || [] });
   } catch (error) {
     console.error("Error fetching sales:", error);
     return NextResponse.json(
@@ -43,14 +50,20 @@ export async function POST(request: Request) {
 
     // Obtener productos para conocer su costo actual
     const productIds = items.map((i: any) => i.productId);
-    const dbProducts = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-    });
+    const { data: dbProducts, error: prodErr } = await supabase
+      .from("cl_products")
+      .select("*, category:cl_categories(*)")
+      .in("id", productIds);
 
-    const productMap = new Map(dbProducts.map((p) => [p.id, p]));
+    if (prodErr || !dbProducts) {
+      throw prodErr || new Error("Error consultando productos de la venta");
+    }
+
+    const productMap = new Map(dbProducts.map((p: any) => [p.id, p]));
 
     let totalAmount = 0;
     let totalCost = 0;
+    const saleId = genId("sale");
 
     const saleItemsData = items.map((item: any) => {
       const product = productMap.get(item.productId);
@@ -71,6 +84,8 @@ export async function POST(request: Request) {
       totalCost += costSubtotal;
 
       return {
+        id: genId("sitem"),
+        saleId,
         productId: item.productId,
         quantity,
         unitCost,
@@ -85,62 +100,81 @@ export async function POST(request: Request) {
     const realMarginPercent = calculateRealMargin(totalCost, totalAmount);
     const saleCode = `VTA-${Date.now().toString().slice(-6)}`;
 
-    // Transacción para registrar venta y descontar stock
-    const sale = await prisma.$transaction(async (tx) => {
-      const newSale = await tx.sale.create({
-        data: {
-          saleCode,
-          customerName,
-          paymentMethod,
-          totalAmount,
-          totalCost,
-          totalProfit,
-          realMarginPercent,
-          items: {
-            create: saleItemsData,
-          },
-        },
-        include: {
-          items: {
-            include: { product: true },
-          },
-        },
-      });
+    // 1. Insertar venta
+    const { data: newSale, error: saleErr } = await supabase
+      .from("cl_sales")
+      .insert({
+        id: saleId,
+        saleCode,
+        customerName,
+        paymentMethod,
+        totalAmount,
+        totalCost,
+        totalProfit,
+        realMarginPercent,
+      })
+      .select()
+      .single();
 
-      // Descontar inventario y detectar productos en alerta de bajo stock
-      const stockAlerts = [];
-      for (const item of items) {
-        const updatedProduct = await tx.product.update({
-          where: { id: item.productId },
-          data: {
-            currentStock: {
-              decrement: Number(item.quantity),
-            },
-          },
-          include: { category: true },
-        });
+    if (saleErr) {
+      throw saleErr;
+    }
 
-        if (updatedProduct.currentStock <= updatedProduct.minStock) {
+    // 2. Insertar items
+    const { error: itemsErr } = await supabase
+      .from("cl_sale_items")
+      .insert(saleItemsData);
+
+    if (itemsErr) {
+      throw itemsErr;
+    }
+
+    // 3. Descontar stock y evaluar alertas
+    const stockAlerts = [];
+    for (const item of items) {
+      const currentProd = productMap.get(item.productId);
+      if (currentProd) {
+        const newStock = Math.max(0, (currentProd.currentStock || 0) - Number(item.quantity));
+        await supabase
+          .from("cl_products")
+          .update({
+            currentStock: newStock,
+            updatedAt: new Date().toISOString(),
+          })
+          .eq("id", item.productId);
+
+        if (newStock <= currentProd.minStock) {
           stockAlerts.push({
-            id: updatedProduct.id,
-            name: updatedProduct.name,
-            unit: updatedProduct.unit,
-            currentStock: updatedProduct.currentStock,
-            minStock: updatedProduct.minStock,
-            isOutOfStock: updatedProduct.currentStock <= 0,
-            isLowStock: updatedProduct.currentStock > 0 && updatedProduct.currentStock <= updatedProduct.minStock,
-            categoryName: updatedProduct.category.name,
+            id: currentProd.id,
+            name: currentProd.name,
+            unit: currentProd.unit,
+            currentStock: newStock,
+            minStock: currentProd.minStock,
+            isOutOfStock: newStock <= 0,
+            isLowStock: newStock > 0 && newStock <= currentProd.minStock,
+            categoryName: currentProd.category?.name || "General",
           });
         }
       }
+    }
 
-      return { newSale, stockAlerts };
-    });
+    // Cargar venta completa con items
+    const { data: completeSale } = await supabase
+      .from("cl_sales")
+      .select(`
+        *,
+        items:cl_sale_items(
+          *,
+          product:cl_products(*)
+        )
+      `)
+      .eq("id", saleId)
+      .single();
 
     return NextResponse.json({
       success: true,
-      data: sale.newSale,
-      stockAlerts: sale.stockAlerts,
+      data: completeSale || newSale,
+      stockAlerts,
     });
   } catch (error: any) {
     console.error("Error creating sale:", error);

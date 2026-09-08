@@ -1,17 +1,27 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const categories = await prisma.category.findMany({
-      include: {
-        _count: {
-          select: { products: true },
-        },
+    const { data: categories, error } = await supabase
+      .from("cl_categories")
+      .select("*, products:cl_products(count)")
+      .order("name", { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    const formatted = (categories || []).map((cat: any) => ({
+      ...cat,
+      _count: {
+        products: cat.products?.[0]?.count ?? 0,
       },
-      orderBy: { name: "asc" },
-    });
-    return NextResponse.json({ success: true, data: categories });
+    }));
+
+    return NextResponse.json({ success: true, data: formatted });
   } catch (error) {
     console.error("Error fetching categories:", error);
     return NextResponse.json(

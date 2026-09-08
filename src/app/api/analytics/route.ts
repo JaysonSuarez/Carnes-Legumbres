@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 import { calculateRealMargin } from "@/lib/finance";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
@@ -50,41 +52,47 @@ export async function GET(request: Request) {
       periodLabel = `Mes Actual (${monthNames[now.getMonth()]} ${now.getFullYear()})`;
     }
 
-    // Consultar datos de ventas completas
-    const allSales = await prisma.sale.findMany({
-      include: {
-        items: {
-          include: {
-            product: {
-              include: { category: true },
-            },
-          },
-        },
-      },
-      orderBy: { date: "desc" },
-    });
+    // Consultar datos de ventas, compras, mermas y productos desde Supabase
+    const [salesRes, batchesRes, wasteRes, productsRes] = await Promise.all([
+      supabase
+        .from("cl_sales")
+        .select(`
+          *,
+          items:cl_sale_items(
+            *,
+            product:cl_products(
+              *,
+              category:cl_categories(*)
+            )
+          )
+        `)
+        .order("date", { ascending: false }),
+      supabase
+        .from("cl_batches")
+        .select(`
+          *,
+          items:cl_batch_items(
+            *,
+            product:cl_products(*)
+          )
+        `)
+        .order("date", { ascending: false }),
+      supabase
+        .from("cl_waste_logs")
+        .select(`
+          *,
+          product:cl_products(*)
+        `)
+        .order("date", { ascending: false }),
+      supabase
+        .from("cl_products")
+        .select("*, category:cl_categories(*)"),
+    ]);
 
-    // Consultar compras y lotes
-    const allBatches = await prisma.purchaseBatch.findMany({
-      include: {
-        items: {
-          include: { product: true },
-        },
-      },
-      orderBy: { date: "desc" },
-    });
-
-    // Consultar mermas
-    const allWasteLogs = await prisma.wasteLog.findMany({
-      include: {
-        product: true,
-      },
-      orderBy: { date: "desc" },
-    });
-
-    const products = await prisma.product.findMany({
-      include: { category: true },
-    });
+    const allSales = (salesRes.data || []) as any[];
+    const allBatches = (batchesRes.data || []) as any[];
+    const allWasteLogs = (wasteRes.data || []) as any[];
+    const products = (productsRes.data || []) as any[];
 
     // Filtrar por el período seleccionado
     const periodSales = allSales.filter((s) => {

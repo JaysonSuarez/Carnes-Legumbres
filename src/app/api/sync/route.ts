@@ -1,6 +1,8 @@
-﻿import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextResponse } from "next/server";
+import { supabase, genId } from "@/lib/supabase";
 import { calculateRealMargin } from "@/lib/finance";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
@@ -22,13 +24,16 @@ export async function POST(request: Request) {
 
           // Buscar productos para calcular costos reales y márgenes
           const productIds = items.map((i: any) => i.productId);
-          const products = await prisma.product.findMany({
-            where: { id: { in: productIds } },
-          });
-          const productMap = new Map(products.map((p) => [p.id, p]));
+          const { data: products } = await supabase
+            .from("cl_products")
+            .select("*")
+            .in("id", productIds);
+
+          const productMap = new Map((products || []).map((p: any) => [p.id, p]));
 
           let totalAmount = 0;
           let totalCost = 0;
+          const saleId = genId("sale");
           const saleItemsData: any[] = [];
 
           for (const item of items) {
@@ -43,6 +48,8 @@ export async function POST(request: Request) {
             totalCost += itemCost;
 
             saleItemsData.push({
+              id: genId("sitem"),
+              saleId,
               productId: item.productId,
               quantity: item.quantity,
               unitCost,
@@ -56,103 +63,128 @@ export async function POST(request: Request) {
           const totalProfit = totalAmount - totalCost;
           const overallRealMarginPercent = totalAmount > 0 ? calculateRealMargin(totalCost, totalAmount) : 0;
 
-          // Generar código de ticket correlativo
-          const count = await prisma.sale.count();
-          const saleCode = `TKT-${String(count + 1).padStart(4, "0")}`;
+          const saleCode = `TKT-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`;
 
-          await prisma.$transaction(async (tx) => {
-            await tx.sale.create({
-              data: {
-                saleCode,
-                customerName: customerName || "Cliente Mostrador",
-                paymentMethod: paymentMethod || "EFECTIVO",
-                totalAmount,
-                totalCost,
-                totalProfit,
-                realMarginPercent: overallRealMarginPercent,
-                items: {
-                  create: saleItemsData,
-                },
-              },
-            });
-
-            // Descontar inventario de cada producto
-            for (const item of items) {
-              await tx.product.update({
-                where: { id: item.productId },
-                data: {
-                  currentStock: {
-                    decrement: item.quantity,
-                  },
-                },
-              });
-            }
+          // 1. Insertar venta
+          const { error: saleErr } = await supabase.from("cl_sales").insert({
+            id: saleId,
+            saleCode,
+            customerName: customerName || "Cliente Mostrador",
+            paymentMethod: paymentMethod || "EFECTIVO",
+            totalAmount,
+            totalCost,
+            totalProfit,
+            realMarginPercent: overallRealMarginPercent,
           });
+
+          if (saleErr) {
+            throw saleErr;
+          }
+
+          // 2. Insertar items
+          const { error: itemsErr } = await supabase.from("cl_sale_items").insert(saleItemsData);
+          if (itemsErr) {
+            throw itemsErr;
+          }
+
+          // 3. Descontar inventario de cada producto
+          for (const item of items) {
+            const currentProd = productMap.get(item.productId);
+            if (currentProd) {
+              const newStock = Math.max(0, (currentProd.currentStock || 0) - item.quantity);
+              await supabase
+                .from("cl_products")
+                .update({
+                  currentStock: newStock,
+                  updatedAt: new Date().toISOString(),
+                })
+                .eq("id", item.productId);
+            }
+          }
 
           processedIds.push(id);
         } else if (type === "WASTE") {
           const { productId, quantity, reason, notes } = payload;
-          const product = await prisma.product.findUnique({ where: { id: productId } });
+          const { data: product } = await supabase
+            .from("cl_products")
+            .select("*")
+            .eq("id", productId)
+            .single();
+
           const costLoss = product ? (product.costPrice || 0) * quantity : 0;
 
-          await prisma.$transaction([
-            prisma.wasteLog.create({
-              data: {
-                productId,
-                quantity,
-                reason,
-                costLoss,
-                notes,
-              },
-            }),
-            prisma.product.update({
-              where: { id: productId },
-              data: { currentStock: { decrement: quantity } },
-            }),
-          ]);
+          await supabase.from("cl_waste_logs").insert({
+            id: genId("wlog"),
+            productId,
+            quantity,
+            reason,
+            costLoss,
+            notes,
+          });
+
+          if (product) {
+            const newStock = Math.max(0, (product.currentStock || 0) - quantity);
+            await supabase
+              .from("cl_products")
+              .update({
+                currentStock: newStock,
+                updatedAt: new Date().toISOString(),
+              })
+              .eq("id", productId);
+          }
 
           processedIds.push(id);
         } else if (type === "BATCH") {
           const { batchNumber, supplier, totalCost, totalWeightKg, batchType, notes, items } = payload;
+          const batchId = genId("batch");
 
-          await prisma.$transaction(async (tx) => {
-            const batch = await tx.purchaseBatch.create({
-              data: {
-                batchNumber: batchNumber || `LOT-${Date.now().toString().slice(-4)}`,
-                supplier,
-                totalCost: Number(totalCost),
-                totalWeightKg: totalWeightKg ? Number(totalWeightKg) : null,
-                batchType: batchType || "MEAT_WHOLESALE",
-                notes,
-              },
-            });
-
-            if (Array.isArray(items)) {
-              for (const item of items) {
-                await tx.purchaseBatchItem.create({
-                  data: {
-                    batchId: batch.id,
-                    productId: item.productId,
-                    quantityKg: item.quantityKg,
-                    wasteKg: item.wasteKg || 0,
-                    costAttributed: item.costAttributed || 0,
-                    suggestedSellPrice: item.suggestedSellPrice || 0,
-                    actualSellPrice: item.actualSellPrice || 0,
-                    projectedSubtotal: (item.quantityKg || 0) * (item.actualSellPrice || 0),
-                  },
-                });
-
-                await tx.product.update({
-                  where: { id: item.productId },
-                  data: {
-                    currentStock: { increment: item.quantityKg },
-                    costPrice: item.costAttributed || undefined,
-                    sellPrice: item.actualSellPrice || undefined,
-                  },
-                });
-              }
-            }
+          const { error: batchErr } = await supabase.from("cl_batches").insert({
+            id: batchId,
+            batchNumber: batchNumber || `LOT-${Date.now().toString().slice(-4)}`,
+            supplier,
+            totalCost: Number(totalCost),
+            totalWeightKg: totalWeightKg ? Number(totalWeightKg) : null,
+            batchType: batchType || "MEAT_WHOLESALE",
+            notes,
           });
+
+          if (batchErr) {
+            throw batchErr;
+          }
+
+          if (Array.isArray(items)) {
+            const batchItemsData = items.map((item: any) => ({
+              id: genId("bitem"),
+              batchId,
+              productId: item.productId,
+              quantityKg: item.quantityKg,
+              wasteKg: item.wasteKg || 0,
+              costAttributed: item.costAttributed || 0,
+              suggestedSellPrice: item.suggestedSellPrice || 0,
+              actualSellPrice: item.actualSellPrice || 0,
+              projectedSubtotal: (item.quantityKg || 0) * (item.actualSellPrice || 0),
+            }));
+
+            await supabase.from("cl_batch_items").insert(batchItemsData);
+
+            for (const item of items) {
+              const { data: p } = await supabase
+                .from("cl_products")
+                .select("currentStock")
+                .eq("id", item.productId)
+                .single();
+
+              const newStock = (p?.currentStock || 0) + (item.quantityKg || 0);
+              const updateData: Record<string, any> = {
+                currentStock: newStock,
+                updatedAt: new Date().toISOString(),
+              };
+              if (item.costAttributed) updateData.costPrice = item.costAttributed;
+              if (item.actualSellPrice) updateData.sellPrice = item.actualSellPrice;
+
+              await supabase.from("cl_products").update(updateData).eq("id", item.productId);
+            }
+          }
 
           processedIds.push(id);
         }
