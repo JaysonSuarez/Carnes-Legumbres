@@ -8,6 +8,7 @@ import {
   calculateRealMargin,
   formatCurrency,
   formatWeight,
+  isMeatProduct,
 } from "@/lib/finance";
 import {
   Plus,
@@ -152,12 +153,13 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
   const [templateActionMessage, setTemplateActionMessage] = useState("");
 
   useEffect(() => {
-    // Cargar productos
+    // Cargar productos de carne únicamente
     fetch("/api/products")
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.data) {
-          setProducts(data.data);
+          const meatOnly = data.data.filter(isMeatProduct);
+          setProducts(meatOnly);
         }
       });
 
@@ -711,14 +713,7 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
                           >
                             <option value="">-- Seleccionar producto --</option>
                             {products
-                              .filter(
-                                (p: any) =>
-                                  p.isMeatCut ||
-                                  p.category?.slug?.includes("res") ||
-                                  p.category?.slug?.includes("cerdo") ||
-                                  p.category?.slug?.includes("pollo") ||
-                                  p.category?.type === "CARNICERIA"
-                              )
+                              .filter(isMeatProduct)
                               .map((p) => (
                                 <option key={p.id} value={p.id}>
                                   {p.name}
@@ -839,14 +834,7 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
                           >
                             <option value="">-- Seleccionar producto --</option>
                             {products
-                              .filter(
-                                (p: any) =>
-                                  p.isMeatCut ||
-                                  p.category?.slug?.includes("res") ||
-                                  p.category?.slug?.includes("cerdo") ||
-                                  p.category?.slug?.includes("pollo") ||
-                                  p.category?.type === "CARNICERIA"
-                              )
+                              .filter(isMeatProduct)
                               .map((p) => (
                                 <option key={p.id} value={p.id}>
                                   {p.name}

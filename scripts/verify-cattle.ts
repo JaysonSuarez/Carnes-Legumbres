@@ -4,6 +4,7 @@ import {
   generatePurchaseScenarios,
   computeHistoricalYieldStats,
   REFERENCE_CATTLE_FIXTURE,
+  isMeatProduct,
 } from "../src/lib/cattleEngine";
 
 function runCattleTests() {
@@ -200,6 +201,36 @@ function runCattleTests() {
     throw new Error(`Fallo Test 6: Estimación de Lomo fino fuera de rango esperado: ${estimatedLomoWeight} kg`);
   }
   console.log("✓ TEST 6 PASADO: El sistema proyecta cortes esperados a partir del historial real.\n");
+
+  // TEST 7: Filtrado Exclusivo de Cortes de Carne (Sin Ají, Tomate, Verduras ni Abarrotes)
+  console.log("TEST 7: Filtrado Exclusivo de Cortes Cárnicos");
+  const testSample = [
+    { name: "Lomo Fino de Res", isMeatCut: true, category: { type: "CARNICERIA", slug: "carnes-res" } },
+    { name: "Punta de Anca", isMeatCut: true, category: { type: "CARNICERIA", slug: "carnes-res" } },
+    { name: "Costilla de Cerdo", isMeatCut: false, category: { type: "CARNICERIA", slug: "cortes-cerdo" } },
+    { name: "Pechuga de Pollo", isMeatCut: false, category: { type: "CARNICERIA", slug: "pollos-aves" } },
+    { name: "Tomate Chonto Maduro", isMeatCut: false, category: { type: "LEGUMBRERIA", slug: "legumbres-verduras" } },
+    { name: "Ají", isMeatCut: false, category: { type: "ABARROTES", slug: "abarrotes-carbon" } },
+    { name: "Cebolla Cabezona Blanca", isMeatCut: false, category: { type: "LEGUMBRERIA", slug: "legumbres-verduras" } },
+    { name: "Plátano Hartón Verde", isMeatCut: false, category: { type: "LEGUMBRERIA", slug: "legumbres-verduras" } },
+    { name: "Aceite Kairos 3000ml", isMeatCut: false, category: { type: "ABARROTES", slug: "abarrotes-carbon" } },
+    { name: "Salsa de tomate", isMeatCut: false, category: { type: "ABARROTES", slug: "abarrotes-carbon" } },
+  ];
+
+  const allowed = testSample.filter(isMeatProduct);
+  const forbidden = testSample.filter((p) => !isMeatProduct(p));
+
+  console.log(`- Total productos muestra: ${testSample.length}`);
+  console.log(`- Cortes cárnicos permitidos: ${allowed.map((p) => p.name).join(", ")}`);
+  console.log(`- Excluidos con éxito: ${forbidden.map((p) => p.name).join(", ")}`);
+
+  if (allowed.some((p) => p.name.includes("Tomate") || p.name.includes("Ají") || p.name.includes("Aceite"))) {
+    throw new Error("Fallo Test 7: Un producto no cárnico pasó el filtro!");
+  }
+  if (allowed.length !== 4) {
+    throw new Error(`Fallo Test 7: Deben ser 4 cortes de carne, dio ${allowed.length}`);
+  }
+  console.log("✓ TEST 7 PASADO: El selector solo permite cortes de carne, excluyendo 100% de legumbres y abarrotes.\n");
 
   console.log("================================================================================");
   console.log(" ¡TODAS LAS PRUEBAS MATEMÁTICAS Y DE REGLAS DE NEGOCIO PASARON CON ÉXITO!       ");

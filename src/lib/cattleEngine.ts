@@ -760,3 +760,49 @@ export function formatWeightNumber(kg: number): string {
     maximumFractionDigits: 2,
   }).format(kg || 0)} kg`;
 }
+
+/**
+ * Filtro estricto para productos cárnicos (excluye categóricamente legumbres, verduras, abarrotes)
+ */
+export function isMeatProduct(p: any): boolean {
+  if (!p) return false;
+  const catType = p.category?.type?.toUpperCase() || "";
+  const catSlug = p.category?.slug?.toLowerCase() || "";
+  const prodName = p.name?.toLowerCase() || "";
+
+  // 1. Excluir categóricamente legumbres, verduras, abarrotes y despensa
+  if (catType === "LEGUMBRERIA" || catType === "ABARROTES") return false;
+  if (
+    catSlug.includes("legumbre") ||
+    catSlug.includes("abarrote") ||
+    catSlug.includes("verdura") ||
+    catSlug.includes("carbon")
+  ) {
+    return false;
+  }
+
+  // 2. Excluir explícitamente palabras clave de verduras, frutas y abarrotes
+  const nonMeatKeywords = [
+    "tomate", "ají", "aji", "cebolla", "plátano", "platano", "aceite",
+    "salsa", "papa", "yuca", "limón", "limon", "cilantro", "aguacate",
+    "frugal", "frutiño", "frutino", "milo", "arroz", "atún", "atun",
+    "sardina", "vinagre", "pasta", "harina", "salchicha viena"
+  ];
+  if (nonMeatKeywords.some((k) => prodName.includes(k))) return false;
+
+  // 3. Aceptar si está marcado explícitamente como corte cárnico o de carnicería
+  if (p.isMeatCut === true) return true;
+  if (catType === "CARNICERIA") return true;
+  if (
+    catSlug.includes("res") ||
+    catSlug.includes("carne") ||
+    catSlug.includes("cerdo") ||
+    catSlug.includes("pollo") ||
+    catSlug.includes("ganado")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+

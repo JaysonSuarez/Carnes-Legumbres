@@ -15,6 +15,7 @@ import {
   REFERENCE_CATTLE_FIXTURE,
   DEFAULT_COLOMBIAN_BEEF_BENCHMARKS,
   HistoricalYieldStats,
+  isMeatProduct,
 } from "@/lib/cattleEngine";
 import {
   Beef,
@@ -79,6 +80,14 @@ interface ProductOption {
   costPrice?: number;
   classification?: string;
   unit: string;
+  categoryId?: string;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+    type: string;
+  };
+  isMeatCut?: boolean;
 }
 
 export function CattleYieldModule({ onInventoryUpdated }: { onInventoryUpdated?: () => void }) {
@@ -161,7 +170,9 @@ export function CattleYieldModule({ onInventoryUpdated }: { onInventoryUpdated?:
 
       const prodData = await prodRes.json();
       if (prodData.success && prodData.data) {
-        setCatalogProducts(prodData.data);
+        // Filtrar estrictamente solo productos cárnicos (excluye categóricamente ají, tomate, legumbres y abarrotes)
+        const meatOnlyProducts = prodData.data.filter(isMeatProduct);
+        setCatalogProducts(meatOnlyProducts);
       }
 
       const statsData = await statsRes.json();
@@ -307,9 +318,10 @@ export function CattleYieldModule({ onInventoryUpdated }: { onInventoryUpdated?:
     if (!newProductName.trim()) return;
 
     try {
-      // Buscar categoría de carne de res o usar la primera disponible
+      // Asignar categoría de Carnes de Res por defecto
       const defaultCatId =
-        catalogProducts.find((p) => p.unit === "kg")?.id || "cmtq8g9ek0000vao8zrd3ezat";
+        catalogProducts.find((p) => p.category?.slug === "carnes-res")?.categoryId ||
+        "cmtq8g9ek0000vao8zrd3ezat";
 
       const res = await fetch("/api/products", {
         method: "POST",
@@ -906,9 +918,9 @@ export function CattleYieldModule({ onInventoryUpdated }: { onInventoryUpdated?:
                               onChange={(e) => handleCutChange(cut.id, "productId", e.target.value)}
                               className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:bg-white"
                             >
-                              <option value="">-- Personalizado --</option>
+                              <option value="">-- Personalizado / Escribir corte --</option>
                               {catalogProducts
-                                .filter((p) => p.unit === "kg" || p.classification)
+                                .filter(isMeatProduct)
                                 .map((p) => (
                                   <option key={p.id} value={p.id}>
                                     {p.name}
@@ -1561,7 +1573,7 @@ export function CattleYieldModule({ onInventoryUpdated }: { onInventoryUpdated?:
                   </TableHeader>
                   <TableBody>
                     {catalogProducts
-                      .filter((p) => p.unit === "kg" || p.classification)
+                      .filter(isMeatProduct)
                       .map((prod) => (
                         <TableRow key={prod.id} className="text-xs">
                           <TableCell className="font-bold text-slate-900">{prod.name}</TableCell>
