@@ -59,7 +59,7 @@ export function Navbar({
     },
     {
       id: "meat-batch" as ActiveTab,
-      label: "Simulador de Desposte",
+      label: "Desposte & Ganado",
       icon: Beef,
       badge: "≥ 30%",
     },

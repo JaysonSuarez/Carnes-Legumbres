@@ -346,3 +346,7 @@ export function calculateCattleYield(
     validationMessage,
   };
 }
+
+// Re-exportar motor completo de ganado y desposte
+export * from "./cattleEngine";
+

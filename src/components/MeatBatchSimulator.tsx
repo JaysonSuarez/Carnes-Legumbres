@@ -23,6 +23,7 @@ import {
   FolderOpen,
   Scale,
 } from "lucide-react";
+import { CattleYieldModule } from "@/components/cattle/CattleYieldModule";
 import {
   Card,
   CardHeader,
@@ -377,14 +378,11 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
 
       const payload = {
         batchNumber: generatedCode,
-        supplier: supplier.trim() || (purchaseMode === "CATTLE_LIVE" ? "Ganado en Pie" : "Proveedor Mayorista"),
+        supplier: supplier.trim() || "Proveedor Mayorista",
         batchType: "MEAT_WHOLESALE",
         totalCost,
-        totalWeightKg: purchaseMode === "CATTLE_LIVE" ? liveWeightKg : metrics.totalWeightKg,
-        notes:
-          purchaseMode === "CATTLE_LIVE"
-            ? `Res en Pie: ${liveWeightKg} kg @ ${formatCurrency(pricePerKgLive)}/kg | Rendimiento: ${cattleYield.yieldPercent}% (${cattleYield.totalAprovechableKg} kg) | Merma: ${cattleYield.wastePercent}% (${cattleYield.wasteKg} kg) | Costo Prom: ${formatCurrency(cattleYield.averageCostPerAprovechableKg)}/kg`
-            : "Compra mayorista estándar de carne",
+        totalWeightKg: metrics.totalWeightKg,
+        notes: "Compra mayorista estándar de carne",
         items: cuts.map((c) => ({
           productId: c.productId,
           quantityKg: c.weightKg,
@@ -415,17 +413,54 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Cabecera con Acciones Rápidas */}
-      <Card className="shadow-xs">
-        <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <Beef className="w-5 h-5 text-slate-700" />
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">
-                Simulador de Pedido y Desposte de Carnes
-              </h1>
-            </div>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Selector Superior de Modalidad */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-slate-200 rounded-xl p-3 shadow-xs gap-2">
+        <div className="flex items-center gap-2">
+          <Beef className="w-5 h-5 text-red-600 ml-1" />
+          <span className="text-xs font-bold text-slate-800">Módulo de Carnes:</span>
+        </div>
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setPurchaseMode("CATTLE_LIVE")}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              purchaseMode === "CATTLE_LIVE"
+                ? "bg-white text-slate-900 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Beef className="w-3.5 h-3.5 text-red-600" />
+            <span>Ganado en Pie & Desposte (Completo)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPurchaseMode("DIRECT_BATCH")}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              purchaseMode === "DIRECT_BATCH"
+                ? "bg-white text-slate-900 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <span>Lote Fijo / Mayorista Rápido</span>
+          </button>
+        </div>
+      </div>
+
+      {purchaseMode === "CATTLE_LIVE" ? (
+        <CattleYieldModule onInventoryUpdated={onBatchSaved} />
+      ) : (
+        <div className="space-y-6 max-w-6xl mx-auto">
+          {/* Cabecera con Acciones Rápidas */}
+          <Card className="shadow-xs">
+            <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Beef className="w-5 h-5 text-slate-700" />
+                  <h1 className="text-xl font-bold tracking-tight text-slate-900">
+                    Simulador de Pedido y Desposte de Carnes
+                  </h1>
+                </div>
             <p className="text-xs text-slate-500 mt-1">
               Inicia desde cero o carga una plantilla favorita para proyectar y blindar tu margen real del 30%.
             </p>
@@ -502,318 +537,87 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
       {/* Datos del Pedido */}
       <Card className="shadow-xs">
         <CardHeader className="p-4 sm:p-5 pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-sm font-bold text-slate-900">
-                Datos de la Compra Mayorista
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {purchaseMode === "CATTLE_LIVE"
-                  ? "Calcula el costo del animal por peso vivo, rendimiento y merma de desposte."
-                  : "Especifica el costo total del pedido y el proveedor."}
-              </CardDescription>
-            </div>
-
-            {/* Selector de Modalidad */}
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  setPurchaseMode("CATTLE_LIVE");
-                  setTotalCost(Math.round(liveWeightKg * pricePerKgLive));
-                }}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  purchaseMode === "CATTLE_LIVE"
-                    ? "bg-white text-slate-900 shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Beef className="w-3.5 h-3.5 text-red-600" />
-                <span>Res / Ganado en Pie</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPurchaseMode("DIRECT_BATCH")}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  purchaseMode === "DIRECT_BATCH"
-                    ? "bg-white text-slate-900 shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <span>Lote Fijo</span>
-              </button>
-            </div>
+          <div>
+            <CardTitle className="text-sm font-bold text-slate-900">
+              Datos de la Compra Mayorista (Lote Fijo)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Especifica el costo total del pedido y el proveedor.
+            </CardDescription>
           </div>
         </CardHeader>
 
         <CardContent className="p-4 sm:p-5 pt-0 space-y-4">
-          {purchaseMode === "CATTLE_LIVE" ? (
-            <>
-              {/* Campos de Entrada para Res en Pie */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Peso Vivo (kg) *
-                  </label>
-                  <CleanNumberInput
-                    placeholder="515"
-                    value={liveWeightKg}
-                    onChange={(val) => setLiveWeightKg(val)}
-                    className="font-bold text-slate-900 text-sm h-9 bg-white"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">Peso del animal en báscula</span>
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Gasto Total del Pedido ($) *
+              </label>
+              <CurrencyInput
+                prefix="$"
+                placeholder="0"
+                value={totalCost}
+                onChange={(val) => setTotalCost(val)}
+                className="font-bold text-slate-900 text-base"
+              />
+              <span className="text-[11px] text-slate-400 mt-1 block">¿Cuánto pagaste por toda la carne?</span>
+            </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Precio por Kg Vivo ($) *
-                  </label>
-                  <CurrencyInput
-                    prefix="$"
-                    placeholder="7600"
-                    value={pricePerKgLive}
-                    onChange={(val) => setPricePerKgLive(val)}
-                    className="font-bold text-slate-900 text-sm h-9 bg-white"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">Precio pactado por kg vivo</span>
-                </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Código de Lote
+              </label>
+              <Input
+                type="text"
+                placeholder="Ej: LOTE-MAYORISTA-01"
+                value={batchNumber}
+                onChange={(e) => setBatchNumber(e.target.value)}
+              />
+            </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Costo Total del Animal
-                  </label>
-                  <div className="h-9 px-3 bg-slate-100 rounded-md border border-slate-200 flex items-center font-bold text-slate-900 text-sm">
-                    {formatCurrency(cattleYield.totalAnimalCost)}
-                  </div>
-                  <span className="text-[10px] text-slate-400 mt-1 block">Calculado automáticamente</span>
-                </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Proveedor / Frigorífico
+              </label>
+              <Input
+                type="text"
+                placeholder="Ej: Frigorífico Central"
+                value={supplier}
+                onChange={(e) => setSupplier(e.target.value)}
+              />
+            </div>
+          </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Código de Lote / Proveedor
-                  </label>
-                  <div className="flex gap-1.5">
-                    <Input
-                      type="text"
-                      placeholder="LOTE-RES-01"
-                      value={batchNumber}
-                      onChange={(e) => setBatchNumber(e.target.value)}
-                      className="h-9 text-xs bg-white flex-1"
-                    />
-                    <Input
-                      type="text"
-                      placeholder="Proveedor"
-                      value={supplier}
-                      onChange={(e) => setSupplier(e.target.value)}
-                      className="h-9 text-xs bg-white flex-1"
-                    />
-                  </div>
-                </div>
-              </div>
+          {/* Resumen 4 Métricas Estándar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-100 text-center">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Gasto Total</span>
+              <strong className="text-sm font-bold text-slate-900">
+                {formatCurrency(totalCost)}
+              </strong>
+            </div>
 
-              {/* Tarjeta de Rendimiento y Costo Real de la Res (Visual Solicitado) */}
-              <div className="bg-slate-900 text-white rounded-xl p-4 sm:p-5 shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Scale className="w-4 h-4 text-emerald-400" />
-                    <h4 className="text-xs font-bold tracking-wider uppercase text-slate-200">
-                      Rendimiento y Costo Real de la Res
-                    </h4>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant={cattleYield.yieldPercent >= 50 ? "success" : "warning"}
-                      className="text-[10px] font-bold"
-                    >
-                      Rendimiento: {cattleYield.yieldPercent}%
-                    </Badge>
-                    <Badge variant="outline" className="text-[10px] text-slate-300 border-slate-700">
-                      Merma: {cattleYield.wastePercent}%
-                    </Badge>
-                  </div>
-                </div>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Venta Proyectada</span>
+              <strong className="text-sm font-bold text-slate-900">
+                {formatCurrency(metrics.projectedRevenue)}
+              </strong>
+            </div>
 
-                {/* Resumen 4 Bloques: Costo, Peso Vivo, Merma, Peso Aprovechable */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div className="bg-slate-800/90 p-3 rounded-lg border border-slate-700">
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Costo del Animal</span>
-                    <strong className="text-sm sm:text-base font-bold text-white block mt-0.5">
-                      {formatCurrency(cattleYield.totalAnimalCost)}
-                    </strong>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {liveWeightKg} kg × {formatCurrency(pricePerKgLive)}
-                    </span>
-                  </div>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Utilidad Real</span>
+              <strong className={`text-sm font-bold ${metrics.projectedProfit > 0 ? "text-emerald-700" : "text-slate-900"}`}>
+                {metrics.projectedProfit > 0 ? `+${formatCurrency(metrics.projectedProfit)}` : formatCurrency(metrics.projectedProfit)}
+              </strong>
+            </div>
 
-                  <div className="bg-slate-800/90 p-3 rounded-lg border border-slate-700">
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Peso Vivo</span>
-                    <strong className="text-sm sm:text-base font-bold text-white block mt-0.5">
-                      {formatWeight(liveWeightKg)}
-                    </strong>
-                    <span className="text-[10px] text-slate-400">Animal en pie</span>
-                  </div>
-
-                  <div className="bg-slate-800/90 p-3 rounded-lg border border-slate-700">
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Merma</span>
-                    <strong className="text-sm sm:text-base font-bold text-amber-300 block mt-0.5">
-                      {formatWeight(cattleYield.wasteKg)} · {cattleYield.wastePercent}%
-                    </strong>
-                    <span className="text-[10px] text-slate-400">Hueso blanco, vísceras</span>
-                  </div>
-
-                  <div className="bg-slate-800/90 p-3 rounded-lg border border-slate-700">
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Peso Aprovechable</span>
-                    <strong className="text-sm sm:text-base font-bold text-emerald-400 block mt-0.5">
-                      {formatWeight(cattleYield.totalAprovechableKg)} · {cattleYield.yieldPercent}%
-                    </strong>
-                    <span className="text-[10px] text-slate-400">Cortes vendibles ({cuts.length})</span>
-                  </div>
-                </div>
-
-                {/* Fila Financiera: Costo Promedio, Valor Venta, Utilidad y Margen */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1 border-t border-slate-800">
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Costo Promedio</span>
-                    <strong className="text-sm font-bold text-slate-200">
-                      {formatCurrency(cattleYield.averageCostPerAprovechableKg)}/kg
-                    </strong>
-                    <span className="text-[10px] text-slate-500 block">por kg vendible</span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Valor Potencial Venta</span>
-                    <strong className="text-sm font-bold text-slate-100">
-                      {formatCurrency(cattleYield.totalPotentialRevenue)}
-                    </strong>
-                    <span className="text-[10px] text-slate-500 block">facturación estimada</span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Utilidad Potencial</span>
-                    <strong className={`text-sm font-bold ${cattleYield.totalPotentialProfit > 0 ? "text-emerald-400" : "text-slate-300"}`}>
-                      {cattleYield.totalPotentialProfit > 0 ? `+${formatCurrency(cattleYield.totalPotentialProfit)}` : formatCurrency(cattleYield.totalPotentialProfit)}
-                    </strong>
-                    <span className="text-[10px] text-slate-500 block">ganancia bruta</span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Margen Bruto Real</span>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <Badge
-                        variant={cattleYield.totalPotentialMarginPercent >= targetMargin ? "success" : "destructive"}
-                        className="text-[10px] font-bold"
-                      >
-                        {cattleYield.totalPotentialMarginPercent}%
-                      </Badge>
-                      <span className="text-[10px] text-slate-400">
-                        {cattleYield.totalPotentialMarginPercent >= targetMargin ? "(≥ 30% OK)" : "(Bajo)"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Validación de consistencia */}
-                {cattleYield.validationMessage && (
-                  <div className="bg-rose-950/70 border border-rose-800 text-rose-200 p-2.5 rounded-lg text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                    <span>{cattleYield.validationMessage}</span>
-                  </div>
-                )}
-
-                {/* Botón de Costeo por Valor Relativo */}
-                <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800">
-                  <div className="text-[11px] text-slate-300 leading-snug">
-                    <strong className="text-white block">Costeo por Valor Relativo de Venta:</strong>
-                    Distribuye los {formatCurrency(cattleYield.totalAnimalCost)} entre los cortes según el valor comercial de cada uno (los cortes finos absorben mayor costo).
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleApplyRelativeCostDistribution}
-                    disabled={cattleYield.cutAttributions.length === 0 || !cattleYield.isCoherent}
-                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9 px-4 shrink-0 shadow-xs cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                    Distribuir Costo por Valor Relativo
-                  </Button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Modo Lote Directo */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Gasto Total del Pedido ($) *
-                  </label>
-                  <CurrencyInput
-                    prefix="$"
-                    placeholder="0"
-                    value={totalCost}
-                    onChange={(val) => setTotalCost(val)}
-                    className="font-bold text-slate-900 text-base"
-                  />
-                  <span className="text-[11px] text-slate-400 mt-1 block">¿Cuánto pagaste por toda la carne?</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Código de Lote
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Ej: LOTE-RES-01"
-                    value={batchNumber}
-                    onChange={(e) => setBatchNumber(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Proveedor / Frigorífico
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Ej: Frigorífico Central"
-                    value={supplier}
-                    onChange={(e) => setSupplier(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Resumen 4 Métricas Estándar */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-100 text-center">
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Gasto Total</span>
-                  <strong className="text-sm font-bold text-slate-900">
-                    {formatCurrency(totalCost)}
-                  </strong>
-                </div>
-
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Venta Proyectada</span>
-                  <strong className="text-sm font-bold text-slate-900">
-                    {formatCurrency(metrics.projectedRevenue)}
-                  </strong>
-                </div>
-
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Utilidad Real</span>
-                  <strong className={`text-sm font-bold ${metrics.projectedProfit > 0 ? "text-emerald-700" : "text-slate-900"}`}>
-                    {metrics.projectedProfit > 0 ? `+${formatCurrency(metrics.projectedProfit)}` : formatCurrency(metrics.projectedProfit)}
-                  </strong>
-                </div>
-
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Peso Vendible</span>
-                  <strong className="text-sm font-bold text-slate-900">
-                    {formatWeight(metrics.totalSellableWeightKg)}
-                  </strong>
-                </div>
-              </div>
-            </>
-          )}
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Peso Vendible</span>
+              <strong className="text-sm font-bold text-slate-900">
+                {formatWeight(metrics.totalSellableWeightKg)}
+              </strong>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -846,19 +650,6 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
           </div>
 
           <div className="flex items-center gap-2">
-            {purchaseMode === "CATTLE_LIVE" && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleApplyRelativeCostDistribution}
-                disabled={cuts.length === 0}
-                className="text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                title="Distribuye el costo total del animal proporcionalmente al valor comercial de cada corte"
-              >
-                <Sparkles className="w-3.5 h-3.5 mr-1" />
-                Costeo Relativo
-              </Button>
-            )}
             <Button variant="outline" size="sm" onClick={handleAddCut} className="text-xs">
               <Plus className="w-3.5 h-3.5 mr-1" />
               Agregar Corte
@@ -987,11 +778,6 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
                           />
                           <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
                             <span>Sug. 30%: <span className="font-mono font-medium text-slate-600">{formatCurrency(suggested)}</span></span>
-                            {purchaseMode === "CATTLE_LIVE" && (
-                              <span className="text-emerald-700 font-semibold">
-                                {cattleYield.cutAttributions.find((a) => a.id === cut.id)?.valueSharePercent || 0}% valor
-                              </span>
-                            )}
                           </div>
                         </div>
 
@@ -1103,11 +889,6 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
                             className="w-24 px-1.5 py-1 text-right text-xs"
                             placeholder="0"
                           />
-                          {purchaseMode === "CATTLE_LIVE" && (
-                            <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">
-                              {cattleYield.cutAttributions.find((a) => a.id === cut.id)?.valueSharePercent || 0}% valor
-                            </span>
-                          )}
                         </TableCell>
 
                         <TableCell className="text-right text-xs text-slate-400 font-mono">
@@ -1294,6 +1075,8 @@ export function MeatBatchSimulator({ onBatchSaved }: { onBatchSaved?: () => void
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </div>
+      )}
     </div>
   );
 }

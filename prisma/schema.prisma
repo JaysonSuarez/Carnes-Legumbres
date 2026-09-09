@@ -33,11 +33,70 @@ model Product {
   currentStock          Float               @default(0.0) // Stock disponible en la unidad del producto
   minStock              Float               @default(5.0) // Umbral para alerta de inventario bajo
   isMeatCut             Boolean             @default(false)
+  marketPrice           Float               @default(0.0) // Precio de referencia de mercado
+  isActive              Boolean             @default(true)
+  classification        String              @default("COMERCIALIZABLE")
   batchItems            PurchaseBatchItem[]
   saleItems             SaleItem[]
   wasteLogs             WasteLog[]
+  cattleCuts            CattleCut[]
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
+}
+
+model CattlePurchase {
+  id                    String      @id @default(cuid())
+  batchNumber           String      @unique
+  animalType            String      @default("Novilla")
+  supplier              String      @default("Ganado en Pie")
+  purchaseDate          DateTime    @default(now())
+  liveWeightKg          Float
+  pricePerKgLive        Float
+  acquisitionCost       Float
+  additionalCosts       Json        @default("{\"transport\":0,\"slaughter\":0,\"deboning\":0,\"labor\":0,\"cooling\":0,\"packaging\":0,\"other\":0,\"notes\":\"\"}")
+  totalAdditionalCosts  Float       @default(0.0)
+  totalAnimalCost       Float
+  targetMarginPercent   Float       @default(30.0)
+  status                String      @default("PURCHASED")
+  notes                 String?
+  debonedDate           DateTime?
+  totalSellableWeightKg Float?
+  totalWasteKg          Float?      @default(0.0)
+  unrecoveredWeightKg   Float?
+  yieldPercent          Float?
+  totalPotentialRevenue Float?
+  grossProfit           Float?
+  marginOnSalesPercent  Float?
+  marginOnCostPercent   Float?
+  batchId               String?
+  cuts                  CattleCut[]
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+}
+
+model CattleCut {
+  id                  String         @id @default(cuid())
+  purchaseId          String
+  purchase            CattlePurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId           String?
+  product             Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName         String
+  classification      String         @default("COMERCIALIZABLE")
+  weightKg            Float          @default(0.0)
+  expectedWeightKg    Float?         @default(0.0)
+  weightDiffKg        Float?         @default(0.0)
+  weightDiffPercent   Float?         @default(0.0)
+  actualSellPrice     Float          @default(0.0)
+  marketPrice         Float?         @default(0.0)
+  potentialRevenue    Float          @default(0.0)
+  valueSharePercent   Float          @default(0.0)
+  costAttributed      Float          @default(0.0)
+  costAttributedPerKg Float          @default(0.0)
+  profit              Float          @default(0.0)
+  realMarginPercent   Float          @default(0.0)
+  minSellPrice        Float          @default(0.0)
+  recommendedPrice    Float          @default(0.0)
+  createdAt           DateTime       @default(now())
 }
 
 model PurchaseBatch {
