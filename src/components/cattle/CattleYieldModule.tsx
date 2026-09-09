@@ -16,6 +16,7 @@ import {
   DEFAULT_COLOMBIAN_BEEF_BENCHMARKS,
   HistoricalYieldStats,
   isMeatProduct,
+  isBeefProduct,
 } from "@/lib/cattleEngine";
 import {
   Beef,
@@ -170,9 +171,9 @@ export function CattleYieldModule({ onInventoryUpdated }: { onInventoryUpdated?:
 
       const prodData = await prodRes.json();
       if (prodData.success && prodData.data) {
-        // Filtrar estrictamente solo productos cárnicos (excluye categóricamente ají, tomate, legumbres y abarrotes)
-        const meatOnlyProducts = prodData.data.filter(isMeatProduct);
-        setCatalogProducts(meatOnlyProducts);
+        // Filtrar estrictamente solo cortes de ganado/res (excluye pescados, cerdo, pollo, legumbres y abarrotes)
+        const beefOnlyProducts = prodData.data.filter(isBeefProduct);
+        setCatalogProducts(beefOnlyProducts);
       }
 
       const statsData = await statsRes.json();
@@ -920,7 +921,7 @@ export function CattleYieldModule({ onInventoryUpdated }: { onInventoryUpdated?:
                             >
                               <option value="">-- Personalizado / Escribir corte --</option>
                               {catalogProducts
-                                .filter(isMeatProduct)
+                                .filter(isBeefProduct)
                                 .map((p) => (
                                   <option key={p.id} value={p.id}>
                                     {p.name}
@@ -1573,7 +1574,7 @@ export function CattleYieldModule({ onInventoryUpdated }: { onInventoryUpdated?:
                   </TableHeader>
                   <TableBody>
                     {catalogProducts
-                      .filter(isMeatProduct)
+                      .filter(isBeefProduct)
                       .map((prod) => (
                         <TableRow key={prod.id} className="text-xs">
                           <TableCell className="font-bold text-slate-900">{prod.name}</TableCell>

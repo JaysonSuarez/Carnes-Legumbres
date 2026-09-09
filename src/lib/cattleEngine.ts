@@ -806,3 +806,17 @@ export function isMeatProduct(p: any): boolean {
   return false;
 }
 
+/**
+ * Filtro específico para ganado bovino / res (excluye pescados, cerdo y pollo en desposte de novilla/res)
+ */
+export function isBeefProduct(p: any): boolean {
+  if (!isMeatProduct(p)) return false;
+  const catSlug = p.category?.slug?.toLowerCase() || "";
+  if (catSlug.includes("pescado") || catSlug.includes("cerdo") || catSlug.includes("pollo")) return false;
+  const prodName = p.name?.toLowerCase() || "";
+  if (prodName.includes("cerdo") || prodName.includes("pollo") || prodName.includes("cachama") || prodName.includes("pescado")) {
+    return false;
+  }
+  return true;
+}
+
