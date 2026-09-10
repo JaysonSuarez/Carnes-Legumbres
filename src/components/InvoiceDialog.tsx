@@ -40,9 +40,15 @@ interface InvoiceDialogProps {
   sale: SaleInvoiceData | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  allowProfitAudit?: boolean;
 }
 
-export function InvoiceDialog({ sale, open, onOpenChange }: InvoiceDialogProps) {
+export function InvoiceDialog({
+  sale,
+  open,
+  onOpenChange,
+  allowProfitAudit = false,
+}: InvoiceDialogProps) {
   const [showProfitDetails, setShowProfitDetails] = useState(false);
 
   if (!sale) return null;
@@ -429,38 +435,40 @@ export function InvoiceDialog({ sale, open, onOpenChange }: InvoiceDialogProps) 
             }}
           />
 
-          {/* Sección de Auditoría Interna (Rentabilidad Real - Solo Dueño, NUNCA se imprime) */}
-          <div className="pt-1 no-print" style={{ paddingTop: "4px" }}>
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setShowProfitDetails(!showProfitDetails)}
-                className="text-[11px] font-semibold text-slate-500 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
-              >
-                {showProfitDetails ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                <span>{showProfitDetails ? "Ocultar rentabilidad interna" : "Ver rentabilidad interna (Solo Dueño)"}</span>
-              </button>
-            </div>
-
-            {showProfitDetails && (
-              <div className="mt-2 p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1 font-mono">
-                <div className="flex justify-between text-slate-500">
-                  <span>Costo Mercancía:</span>
-                  <span>{formatCurrency(sale.totalCost)}</span>
-                </div>
-                <div className="flex justify-between text-emerald-700 font-semibold">
-                  <span>Utilidad Neta:</span>
-                  <span>+{formatCurrency(sale.totalProfit)}</span>
-                </div>
-                <div className="flex justify-between items-center pt-1 border-t border-slate-200">
-                  <span className="font-bold text-slate-700">Margen Real Obtenido:</span>
-                  <Badge variant={sale.realMarginPercent >= 30 ? "success" : "destructive"} className="text-[10px] font-bold">
-                    {sale.realMarginPercent}% {sale.realMarginPercent >= 30 ? "✓" : "⚠"}
-                  </Badge>
-                </div>
+          {/* Sección de Auditoría Interna (Rentabilidad Real - Solo Dueño en Reportes, NUNCA en Mostrador) */}
+          {allowProfitAudit && (
+            <div className="pt-1 no-print" style={{ paddingTop: "4px" }}>
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowProfitDetails(!showProfitDetails)}
+                  className="text-[11px] font-semibold text-slate-500 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
+                >
+                  {showProfitDetails ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  <span>{showProfitDetails ? "Ocultar rentabilidad interna" : "Ver rentabilidad interna (Solo Dueño)"}</span>
+                </button>
               </div>
-            )}
-          </div>
+
+              {showProfitDetails && (
+                <div className="mt-2 p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1 font-mono">
+                  <div className="flex justify-between text-slate-500">
+                    <span>Costo Mercancía:</span>
+                    <span>{formatCurrency(sale.totalCost)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-700 font-semibold">
+                    <span>Utilidad Neta:</span>
+                    <span>+{formatCurrency(sale.totalProfit)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-200">
+                    <span className="font-bold text-slate-700">Margen Real Obtenido:</span>
+                    <Badge variant={sale.realMarginPercent >= 30 ? "success" : "destructive"} className="text-[10px] font-bold">
+                      {sale.realMarginPercent}% {sale.realMarginPercent >= 30 ? "✓" : "⚠"}
+                    </Badge>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Pie del Recibo */}
           <div

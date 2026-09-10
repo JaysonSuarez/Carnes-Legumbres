@@ -990,6 +990,7 @@ export function ReportsView() {
         sale={selectedInvoice}
         open={isInvoiceOpen}
         onOpenChange={setIsInvoiceOpen}
+        allowProfitAudit={true}
       />
     </div>
   );

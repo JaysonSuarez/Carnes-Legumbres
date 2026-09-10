@@ -3,23 +3,36 @@
 import React, { useState, useEffect } from "react";
 import { Navbar, ActiveTab } from "@/components/Navbar";
 import { DashboardView } from "@/components/DashboardView";
-import { MeatBatchSimulator } from "@/components/MeatBatchSimulator";
 import { SmartPricingView } from "@/components/SmartPricingView";
 import { InventoryView } from "@/components/InventoryView";
 import { PosView } from "@/components/PosView";
-import { WasteView } from "@/components/WasteView";
 import { ReportsView } from "@/components/ReportsView";
 
+import { LoginForm } from "@/components/LoginForm";
+import { getSession, logout, AuthSession } from "@/lib/auth";
+
 export default function Home() {
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
   const [marginAlertCount, setMarginAlertCount] = useState(0);
   const [stockAlertCount, setStockAlertCount] = useState(0);
 
   useEffect(() => {
+    const s = getSession();
+    if (s && s.role === "admin") {
+      setSession(s);
+    }
+    setAuthChecked(true);
+
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get("tab") as ActiveTab;
-      if (tab) setActiveTab(tab);
+      if (tab && tab !== "meat-batch" && tab !== "waste") {
+        setActiveTab(tab);
+      } else if (tab === "meat-batch" || tab === "waste") {
+        setActiveTab("dashboard");
+      }
     }
   }, []);
 
@@ -44,6 +57,30 @@ export default function Home() {
     checkAlerts();
   }, [activeTab]);
 
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-slate-900 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!session || session.role !== "admin") {
+    return (
+      <LoginForm
+        requiredRole="admin"
+        title="Panel de Administración"
+        subtitle="Ingreso exclusivo para el dueño del negocio (andresadmin)."
+        onSuccess={(newSession) => setSession(newSession)}
+      />
+    );
+  }
+
+  const handleLogout = () => {
+    logout();
+    setSession(null);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50/60 flex flex-col text-slate-800 antialiased">
       {/* Barra de Navegación Principal */}
@@ -52,28 +89,20 @@ export default function Home() {
         setActiveTab={setActiveTab}
         marginAlertCount={marginAlertCount}
         stockAlertCount={stockAlertCount}
+        currentUser={session.name}
+        onLogout={handleLogout}
       />
 
       {/* Contenedor Principal con espacio para la barra de navegación inferior móvil */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 py-3 sm:px-6 sm:py-6 lg:p-8 pb-24 md:pb-8">
         {activeTab === "dashboard" && (
           <DashboardView
-            onNavigateToBatch={() => setActiveTab("meat-batch")}
             onNavigateToPos={() => setActiveTab("pos")}
             onNavigateToInventory={() => setActiveTab("inventory")}
           />
         )}
 
         {activeTab === "reports" && <ReportsView />}
-
-        {activeTab === "meat-batch" && (
-          <MeatBatchSimulator
-            onBatchSaved={() => {
-              checkAlerts();
-              setActiveTab("dashboard");
-            }}
-          />
-        )}
 
         {activeTab === "smart-pricing" && <SmartPricingView />}
 
@@ -86,8 +115,6 @@ export default function Home() {
             }}
           />
         )}
-
-        {activeTab === "waste" && <WasteView />}
       </main>
 
       {/* Footer Minimalista (Oculto en móvil para no estorbar con la navegación inferior) */}

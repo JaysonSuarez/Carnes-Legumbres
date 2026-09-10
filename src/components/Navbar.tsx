@@ -16,6 +16,7 @@ import {
   Sparkles,
   ChevronRight,
   ShieldCheck,
+  LogOut,
 } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,16 @@ interface NavbarProps {
   setActiveTab: (tab: ActiveTab) => void;
   marginAlertCount?: number;
   stockAlertCount?: number;
+  currentUser?: string;
+  onLogout?: () => void;
+}
+
+interface DesktopTabItem {
+  id: ActiveTab;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
+  alertCount?: number;
 }
 
 export function Navbar({
@@ -43,10 +54,12 @@ export function Navbar({
   setActiveTab,
   marginAlertCount = 0,
   stockAlertCount = 0,
+  currentUser,
+  onLogout,
 }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const desktopTabs = [
+  const desktopTabs: DesktopTabItem[] = [
     {
       id: "dashboard" as ActiveTab,
       label: "Cómo Vamos",
@@ -56,12 +69,6 @@ export function Navbar({
       id: "reports" as ActiveTab,
       label: "Registro & Facturas",
       icon: Receipt,
-    },
-    {
-      id: "meat-batch" as ActiveTab,
-      label: "Desposte & Ganado",
-      icon: Beef,
-      badge: "≥ 30%",
     },
     {
       id: "smart-pricing" as ActiveTab,
@@ -78,11 +85,6 @@ export function Navbar({
       id: "pos" as ActiveTab,
       label: "Punto de Venta",
       icon: ShoppingCart,
-    },
-    {
-      id: "waste" as ActiveTab,
-      label: "Mermas",
-      icon: Trash2,
     },
   ];
 
@@ -116,10 +118,7 @@ export function Navbar({
     setMobileMenuOpen(false);
   };
 
-  const isMoreTabActive =
-    activeTab === "meat-batch" ||
-    activeTab === "smart-pricing" ||
-    activeTab === "waste";
+  const isMoreTabActive = activeTab === "smart-pricing";
 
   return (
     <>
@@ -148,15 +147,35 @@ export function Navbar({
 
             <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
               <OfflineSyncIndicator />
+              <Link
+                href="/mostrador"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
+                title="Abrir apartado exclusivo de mostrador y ventas"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Mostrador y Ventas</span>
+                <span className="sm:hidden">Mostrador</span>
+              </Link>
               <Badge
                 variant="success"
-                className="hidden sm:inline-flex px-2.5 py-0.5 text-xs font-semibold"
+                className="hidden lg:inline-flex px-2.5 py-0.5 text-xs font-semibold"
               >
                 Meta ≥ 30%
               </Badge>
               <StockNotificationCenter
                 onNavigateToInventory={() => handleSelectTab("inventory")}
               />
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
+                  title="Cerrar sesión de administrador"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-slate-500 hover:text-rose-600" />
+                  <span className="hidden sm:inline">Salir</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -305,46 +324,33 @@ export function Navbar({
 
             {/* Opciones secundarias reorganizadas para el pulgar */}
             <div className="grid grid-cols-1 gap-2.5">
-              {/* Simulador de Desposte */}
-              <button
-                type="button"
-                onClick={() => handleSelectTab("meat-batch")}
-                className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                  activeTab === "meat-batch"
-                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
-                    : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
-                }`}
+              {/* Apartado Único de Mostrador (/mostrador) */}
+              <Link
+                href="/mostrador"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3.5 rounded-xl border bg-emerald-50/70 hover:bg-emerald-100/80 border-emerald-200 text-slate-800 flex items-center justify-between transition-all"
               >
                 <div className="flex items-center gap-3">
-                  <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                      activeTab === "meat-batch"
-                        ? "bg-slate-800 text-white"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    <Beef className="w-5 h-5" />
+                  <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <ShoppingCart className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold flex items-center gap-1.5">
-                      <span>Simulador de Desposte</span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold">
-                        ≥ 30%
-                      </span>
+                    <div className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                      <span>Mostrador y Ventas</span>
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] py-0 px-1 border-emerald-300 text-emerald-700 bg-white"
+                      >
+                        Terminal de Caja
+                      </Badge>
                     </div>
-                    <div
-                      className={`text-[11px] ${
-                        activeTab === "meat-batch"
-                          ? "text-slate-300"
-                          : "text-slate-500"
-                      }`}
-                    >
-                      Cálculo de rendimiento de canales y lotes
+                    <div className="text-[11px] text-emerald-800/80">
+                      Pantalla exclusiva para registro ágil de ventas
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 opacity-50" />
-              </button>
+                <ChevronRight className="w-4 h-4 text-emerald-500" />
+              </Link>
 
               {/* Calculadora de Precios */}
               <button
@@ -384,72 +390,32 @@ export function Navbar({
                 <ChevronRight className="w-4 h-4 opacity-50" />
               </button>
 
-              {/* Control de Mermas */}
-              <button
-                type="button"
-                onClick={() => handleSelectTab("waste")}
-                className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                  activeTab === "waste"
-                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
-                    : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                      activeTab === "waste"
-                        ? "bg-slate-800 text-white"
-                        : "bg-rose-100 text-rose-700"
-                    }`}
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold">
-                      Control de Mermas
+              {/* Cerrar Sesión Móvil */}
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onLogout();
+                  }}
+                  className="p-3.5 rounded-xl border bg-rose-50/70 hover:bg-rose-100 border-rose-200 text-rose-800 flex items-center justify-between transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-rose-600 text-white flex items-center justify-center shrink-0">
+                      <LogOut className="w-5 h-5" />
                     </div>
-                    <div
-                      className={`text-[11px] ${
-                        activeTab === "waste"
-                          ? "text-slate-300"
-                          : "text-slate-500"
-                      }`}
-                    >
-                      Registro de pérdidas por descarte o maduración
+                    <div>
+                      <div className="text-xs font-bold text-rose-950">
+                        Cerrar Sesión de Administrador
+                      </div>
+                      <div className="text-[11px] text-rose-800/80">
+                        Salir del panel de control
+                      </div>
                     </div>
                   </div>
-                </div>
-                <ChevronRight className="w-4 h-4 opacity-50" />
-              </button>
-
-              {/* Despensa Privada (/despensa) */}
-              <Link
-                href="/despensa"
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-3.5 rounded-xl border bg-indigo-50/50 hover:bg-indigo-100/70 border-indigo-200 text-slate-800 flex items-center justify-between transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                    <Boxes className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
-                      <span>Despensa Privada</span>
-                      <Badge
-                        variant="outline"
-                        className="text-[9px] py-0 px-1 border-indigo-300 text-indigo-700 bg-white"
-                      >
-                        <ShieldCheck className="w-2.5 h-2.5 mr-0.5" />
-                        Privado
-                      </Badge>
-                    </div>
-                    <div className="text-[11px] text-indigo-800/80">
-                      Conteo físico y fijación automática Costo / 0.7
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-indigo-400" />
-              </Link>
+                  <ChevronRight className="w-4 h-4 text-rose-400" />
+                </button>
+              )}
             </div>
           </div>
         </div>

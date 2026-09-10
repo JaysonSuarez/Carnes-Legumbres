@@ -361,13 +361,6 @@ export function StockNotificationCenter({
                   Ir al Inventario <ChevronRight className="w-3.5 h-3.5 ml-1" />
                 </Button>
               )}
-              <a
-                href="/despensa"
-                className="inline-flex items-center justify-center text-xs font-semibold px-3 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shrink-0"
-                title="Abrir hoja de conteo privada"
-              >
-                <ExternalLink className="w-3.5 h-3.5 mr-1" /> Despensa
-              </a>
             </div>
           </div>
         )}

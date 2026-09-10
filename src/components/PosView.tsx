@@ -8,8 +8,6 @@ import {
   Check,
   Search,
   Receipt,
-  Eye,
-  EyeOff,
   Beef,
   Drumstick,
   Ham,
@@ -260,7 +258,13 @@ export const getProductConfig = (productName: string, categoryName = "") => {
   };
 };
 
-export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
+export function PosView({
+  onSaleCompleted,
+  showHeader = true,
+}: {
+  onSaleCompleted?: () => void;
+  showHeader?: boolean;
+}) {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -269,7 +273,6 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
   const [paymentMethod, setPaymentMethod] = useState("EFECTIVO");
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [showInternalAudit, setShowInternalAudit] = useState(false);
 
   // Estado para la Factura Imprimible
   const [invoiceSale, setInvoiceSale] = useState<SaleInvoiceData | null>(null);
@@ -626,20 +629,22 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
-      {/* Cabecera */}
-      <Card className="shadow-xs border-slate-200">
-        <CardContent className="p-5 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5 text-slate-700" />
-              Punto de Venta & Facturación
-            </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Despacho en mostrador organizado por secciones con pesaje ágil y tirilla de venta.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Cabecera (Opcional) */}
+      {showHeader && (
+        <Card className="shadow-xs border-slate-200">
+          <CardContent className="p-5 flex justify-between items-center">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+                <ShoppingCart className="w-5 h-5 text-slate-700" />
+                Punto de Venta & Facturación
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Despacho en mostrador organizado por secciones con pesaje ágil y tirilla de venta.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Selector de Pantalla Móvil (Catálogo vs Ticket) */}
       <div className="flex lg:hidden rounded-xl bg-slate-200/90 p-1 mb-1">
@@ -1043,40 +1048,6 @@ export function PosView({ onSaleCompleted }: { onSaleCompleted?: () => void }) {
               <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
                 {formatCurrency(totalAmount)}
               </span>
-            </div>
-
-            {/* Auditoría Interna (Oculta por defecto para no mostrar a clientes) */}
-            <div className="w-full pt-1">
-              <button
-                type="button"
-                onClick={() => setShowInternalAudit(!showInternalAudit)}
-                className="text-[11px] font-semibold text-slate-400 hover:text-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
-              >
-                {showInternalAudit ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                <span>{showInternalAudit ? "Ocultar rentabilidad interna" : "Rentabilidad interna (Solo Cajero)"}</span>
-              </button>
-
-              {showInternalAudit && (
-                <div className="w-full bg-slate-50 p-2.5 rounded-lg text-xs space-y-1.5 border border-slate-200 mt-2 font-mono">
-                  <div className="flex justify-between text-slate-500">
-                    <span>Costo Mercancía:</span>
-                    <span>{formatCurrency(totalCost)}</span>
-                  </div>
-                  <div className="flex justify-between text-emerald-700 font-semibold">
-                    <span>Ganancia Estimada:</span>
-                    <span>+{formatCurrency(totalProfit)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-1 border-t border-slate-200">
-                    <span className="font-semibold text-slate-700 font-sans">Margen Real Ticket:</span>
-                    <Badge
-                      variant={isOverallMarginGood ? "success" : "destructive"}
-                      className="text-[10px] font-bold"
-                    >
-                      {overallMargin}% {isOverallMarginGood ? "✓" : "⚠"}
-                    </Badge>
-                  </div>
-                </div>
-              )}
             </div>
 
             <Button

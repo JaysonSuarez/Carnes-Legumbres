@@ -91,7 +91,6 @@ interface AnalyticsData {
 }
 
 interface DashboardViewProps {
-  onNavigateToBatch?: () => void;
   onNavigateToPos?: () => void;
   onNavigateToInventory?: () => void;
 }
@@ -107,7 +106,6 @@ interface StockAlertProduct {
 }
 
 export function DashboardView({
-  onNavigateToBatch,
   onNavigateToPos,
   onNavigateToInventory,
 }: DashboardViewProps) {
@@ -268,12 +266,6 @@ export function DashboardView({
                     Ver en Inventario <ArrowRight className="w-3.5 h-3.5 ml-1" />
                   </Button>
                 )}
-                <a
-                  href="/despensa"
-                  className="inline-flex items-center text-xs px-2.5 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold"
-                >
-                  <ExternalLink className="w-3 h-3 mr-1" /> Despensa
-                </a>
               </div>
             </div>
 
@@ -384,17 +376,6 @@ export function DashboardView({
                 Progreso de recuperación de inversión por cada compra mayorista o desposte.
               </CardDescription>
             </div>
-
-            {onNavigateToBatch && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onNavigateToBatch}
-                className="text-xs"
-              >
-                Nuevo Pedido de Carnes
-              </Button>
-            )}
           </div>
         </CardHeader>
 
