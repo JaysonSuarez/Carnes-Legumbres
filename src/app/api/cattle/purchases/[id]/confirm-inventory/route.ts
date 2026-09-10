@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabase, genId } from "@/lib/supabase";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const tenantId = getTenantId(request);
     const { id } = await params;
 
     const { data: purchase, error: getErr } = await supabase
@@ -20,6 +22,7 @@ export async function POST(
         )
       `)
       .eq("id", id)
+      .eq("tenantId", tenantId)
       .single();
 
     if (getErr || !purchase) {
@@ -36,17 +39,18 @@ export async function POST(
       );
     }
 
-    // 1. Aumentar stock y actualizar costos/precios en cl_products
+    // 1. Aumentar stock y actualizar costos/precios en cl_products del mismo tenant
     const updatedProducts: Array<{ id: string; name: string; addedKg: number; newStock: number }> = [];
 
     for (const cut of purchase.cuts) {
-      // Si el corte no tiene productId directo, intentamos empatar por nombre
+      // Si el corte no tiene productId directo, intentamos empatar por nombre dentro del tenant
       let targetProdId = cut.productId;
       if (!targetProdId) {
         const { data: matched } = await supabase
           .from("cl_products")
           .select("id")
           .ilike("name", `%${cut.productName}%`)
+          .eq("tenantId", tenantId)
           .limit(1)
           .maybeSingle();
 
@@ -55,7 +59,8 @@ export async function POST(
           await supabase
             .from("cl_cattle_cuts")
             .update({ productId: targetProdId })
-            .eq("id", cut.id);
+            .eq("id", cut.id)
+            .eq("tenantId", tenantId);
         }
       }
 
@@ -64,6 +69,7 @@ export async function POST(
           .from("cl_products")
           .select("currentStock, name")
           .eq("id", targetProdId)
+          .eq("tenantId", tenantId)
           .single();
 
         const currentStock = Number(prod?.currentStock || 0);
@@ -84,7 +90,11 @@ export async function POST(
           updateProdData.marketPrice = Math.round(cut.marketPrice);
         }
 
-        await supabase.from("cl_products").update(updateProdData).eq("id", targetProdId);
+        await supabase
+          .from("cl_products")
+          .update(updateProdData)
+          .eq("id", targetProdId)
+          .eq("tenantId", tenantId);
 
         updatedProducts.push({
           id: targetProdId,
@@ -117,9 +127,10 @@ export async function POST(
         projectedRevenue: purchase.totalPotentialRevenue || 0,
         projectedRealMargin: purchase.marginOnSalesPercent || 0,
         status: "ACTIVE",
+        tenantId,
       });
 
-      // Insertar items del lote
+      // Insertar items del lote con tenantId
       const batchItems = purchase.cuts
         .filter((c: any) => c.productId && c.weightKg > 0)
         .map((c: any) => ({
@@ -133,6 +144,7 @@ export async function POST(
           actualSellPrice: c.actualSellPrice,
           projectedSubtotal: Math.round(c.potentialRevenue),
           soldQuantity: 0,
+          tenantId,
         }));
 
       if (batchItems.length > 0) {
@@ -148,7 +160,8 @@ export async function POST(
         batchId,
         updatedAt: new Date().toISOString(),
       })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("tenantId", tenantId);
 
     // Retornar datos actualizados
     const { data: finalPurchase } = await supabase
@@ -161,6 +174,7 @@ export async function POST(
         )
       `)
       .eq("id", id)
+      .eq("tenantId", tenantId)
       .single();
 
     return NextResponse.json({

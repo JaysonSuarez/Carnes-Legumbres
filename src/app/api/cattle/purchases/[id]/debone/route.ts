@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase, genId } from "@/lib/supabase";
 import { calculateAnimalDeboning, DeboningCutInput } from "@/lib/cattleEngine";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const tenantId = getTenantId(request);
     const { id } = await params;
     const body = await request.json();
     const { cuts = [] } = body;
@@ -20,11 +22,12 @@ export async function POST(
       );
     }
 
-    // Obtener la compra del animal
+    // Obtener la compra del animal dentro del tenant
     const { data: purchase, error: getErr } = await supabase
       .from("cl_cattle_purchases")
       .select("*")
       .eq("id", id)
+      .eq("tenantId", tenantId)
       .single();
 
     if (getErr || !purchase) {
@@ -61,12 +64,13 @@ export async function POST(
     const { error: updateErr } = await supabase
       .from("cl_cattle_purchases")
       .update(updatePayload)
-      .eq("id", id);
+      .eq("id", id)
+      .eq("tenantId", tenantId);
 
     if (updateErr) throw updateErr;
 
-    // Eliminar cortes existentes y reinsertar con los cálculos actualizados
-    await supabase.from("cl_cattle_cuts").delete().eq("purchaseId", id);
+    // Eliminar cortes existentes y reinsertar con los cálculos actualizados para este tenant
+    await supabase.from("cl_cattle_cuts").delete().eq("purchaseId", id).eq("tenantId", tenantId);
 
     const cutsPayload = deboningResult.cuts.map((c) => ({
       id: genId("cut"),
@@ -88,6 +92,7 @@ export async function POST(
       realMarginPercent: c.realMarginPercent,
       minSellPrice: c.minSellPrice,
       recommendedPrice: c.recommendedPrice,
+      tenantId,
       createdAt: new Date().toISOString(),
     }));
 
@@ -108,6 +113,7 @@ export async function POST(
         )
       `)
       .eq("id", id)
+      .eq("tenantId", tenantId)
       .single();
 
     return NextResponse.json({

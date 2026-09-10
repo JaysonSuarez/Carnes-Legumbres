@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { calculateRealMargin } from "@/lib/finance";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,9 @@ export async function GET(request: Request) {
       periodLabel = `Mes Actual (${monthNames[now.getMonth()]} ${now.getFullYear()})`;
     }
 
-    // Consultar datos de ventas, compras, mermas y productos desde Supabase
+    const tenantId = getTenantId(request);
+
+    // Consultar datos de ventas, compras, mermas y productos desde Supabase filtrados por tenantId
     const [salesRes, batchesRes, wasteRes, productsRes] = await Promise.all([
       supabase
         .from("cl_sales")
@@ -66,6 +69,7 @@ export async function GET(request: Request) {
             )
           )
         `)
+        .eq("tenantId", tenantId)
         .order("date", { ascending: false }),
       supabase
         .from("cl_batches")
@@ -76,6 +80,7 @@ export async function GET(request: Request) {
             product:cl_products(*)
           )
         `)
+        .eq("tenantId", tenantId)
         .order("date", { ascending: false }),
       supabase
         .from("cl_waste_logs")
@@ -83,10 +88,12 @@ export async function GET(request: Request) {
           *,
           product:cl_products(*)
         `)
+        .eq("tenantId", tenantId)
         .order("date", { ascending: false }),
       supabase
         .from("cl_products")
-        .select("*, category:cl_categories(*)"),
+        .select("*, category:cl_categories(*)")
+        .eq("tenantId", tenantId),
     ]);
 
     const allSales = (salesRes.data || []) as any[];

@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { buildQuickSelectorsMap, ProductContext, RawSaleItem } from "@/lib/quickSelectors";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // 1. Obtener productos activos
+    const tenantId = getTenantId(request);
+
+    // 1. Obtener productos activos del tenant
     const { data: dbProducts, error: prodErr } = await supabase
       .from("cl_products")
-      .select("id, name, unit, sellPrice, category:cl_categories(name, slug)");
+      .select("id, name, unit, sellPrice, category:cl_categories(name, slug)")
+      .eq("tenantId", tenantId);
 
     if (prodErr) {
       throw prodErr;
@@ -24,10 +28,11 @@ export async function GET() {
       categorySlug: p.category?.slug,
     }));
 
-    // 2. Obtener items de ventas recientes (últimos 300 ítems vendidos)
+    // 2. Obtener items de ventas recientes del tenant (últimos 400 ítems)
     const { data: dbItems, error: itemsErr } = await supabase
       .from("cl_sale_items")
       .select("productId, quantity, unitPrice, subtotal, sale:cl_sales(date)")
+      .eq("tenantId", tenantId)
       .order("id", { ascending: false })
       .limit(400);
 

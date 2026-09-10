@@ -38,6 +38,7 @@ interface NavbarProps {
   marginAlertCount?: number;
   stockAlertCount?: number;
   currentUser?: string;
+  tenantId?: string;
   onLogout?: () => void;
 }
 
@@ -55,6 +56,7 @@ export function Navbar({
   marginAlertCount = 0,
   stockAlertCount = 0,
   currentUser,
+  tenantId,
   onLogout,
 }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -135,12 +137,22 @@ export function Navbar({
                   <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900 truncate">
                     Carne & Legumbre
                   </span>
-                  <Badge
-                    variant="outline"
-                    className="hidden md:inline-flex text-[10px] font-medium py-0 h-4 border-slate-200 text-slate-600"
-                  >
-                    Gestión Operativa
-                  </Badge>
+                  {tenantId === "demo" ? (
+                    <Badge
+                      variant="destructive"
+                      className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[10px] tracking-wide px-2 py-0.5 shadow-xs border-0 uppercase animate-pulse"
+                      title="Estás en el entorno de pruebas aislado (Demo). No afecta los datos de producción."
+                    >
+                      MODO DEMO
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="hidden md:inline-flex text-[10px] font-medium py-0 h-4 border-slate-200 text-slate-600"
+                    >
+                      Gestión Operativa
+                    </Badge>
+                  )}
                 </div>
               </div>
             </div>

@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { calculateAnimalDeboning, DeboningCutInput } from "@/lib/cattleEngine";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const tenantId = getTenantId(request);
     const { id } = await params;
 
     const { data: purchase, error } = await supabase
@@ -21,6 +23,7 @@ export async function GET(
         )
       `)
       .eq("id", id)
+      .eq("tenantId", tenantId)
       .single();
 
     if (error) throw error;
@@ -46,6 +49,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const tenantId = getTenantId(request);
     const { id } = await params;
     const body = await request.json();
 
@@ -61,11 +65,12 @@ export async function PUT(
       notes,
     } = body;
 
-    // Obtener datos actuales
+    // Obtener datos actuales del tenant
     const { data: current, error: getErr } = await supabase
       .from("cl_cattle_purchases")
       .select("*, cuts:cl_cattle_cuts(*)")
       .eq("id", id)
+      .eq("tenantId", tenantId)
       .single();
 
     if (getErr || !current) {
@@ -139,7 +144,7 @@ export async function PUT(
       updatePayload.marginOnSalesPercent = deboningResult.marginOnSalesPercent;
       updatePayload.marginOnCostPercent = deboningResult.marginOnCostPercent;
 
-      // Actualizar costos de los cortes existentes
+      // Actualizar costos de los cortes existentes del tenant
       for (const cut of deboningResult.cuts) {
         await supabase
           .from("cl_cattle_cuts")
@@ -151,14 +156,16 @@ export async function PUT(
             minSellPrice: cut.minSellPrice,
             recommendedPrice: cut.recommendedPrice,
           })
-          .eq("id", cut.id);
+          .eq("id", cut.id)
+          .eq("tenantId", tenantId);
       }
     }
 
     const { error: updateErr } = await supabase
       .from("cl_cattle_purchases")
       .update(updatePayload)
-      .eq("id", id);
+      .eq("id", id)
+      .eq("tenantId", tenantId);
 
     if (updateErr) throw updateErr;
 
@@ -172,6 +179,7 @@ export async function PUT(
         )
       `)
       .eq("id", id)
+      .eq("tenantId", tenantId)
       .single();
 
     return NextResponse.json({ success: true, data: updated });
@@ -185,17 +193,22 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const tenantId = getTenantId(request);
     const { id } = await params;
 
-    // Eliminar cortes asociados
-    await supabase.from("cl_cattle_cuts").delete().eq("purchaseId", id);
+    // Eliminar cortes asociados dentro del mismo tenant
+    await supabase.from("cl_cattle_cuts").delete().eq("purchaseId", id).eq("tenantId", tenantId);
 
-    // Eliminar compra
-    const { error } = await supabase.from("cl_cattle_purchases").delete().eq("id", id);
+    // Eliminar compra dentro del mismo tenant
+    const { error } = await supabase
+      .from("cl_cattle_purchases")
+      .delete()
+      .eq("id", id)
+      .eq("tenantId", tenantId);
 
     if (error) throw error;
 

@@ -1,12 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Boxes, ArrowLeft, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DespensaView } from "@/components/DespensaView";
+import { getSession, AuthSession } from "@/lib/auth";
 
 export default function DespensaPage() {
+  const [session, setSession] = useState<AuthSession | null>(null);
+
+  useEffect(() => {
+    setSession(getSession());
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-50/70 flex flex-col text-slate-800 antialiased">
       {/* Encabezado Independiente y Exclusivo de /despensa */}
@@ -21,10 +28,16 @@ export default function DespensaPage() {
                 <span className="text-sm sm:text-base font-bold tracking-tight text-slate-900 truncate">
                   Despensa
                 </span>
-                <Badge variant="outline" className="text-[10px] font-semibold border-indigo-200 text-indigo-700 bg-indigo-50/50 hidden xs:inline-flex">
-                  <ShieldCheck className="w-3 h-3 mr-1 text-indigo-600" />
-                  Privado
-                </Badge>
+                {session?.tenantId === "demo" ? (
+                  <Badge variant="destructive" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[10px] uppercase">
+                    MODO DEMO
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] font-semibold border-indigo-200 text-indigo-700 bg-indigo-50/50 hidden xs:inline-flex">
+                    <ShieldCheck className="w-3 h-3 mr-1 text-indigo-600" />
+                    Privado
+                  </Badge>
+                )}
               </div>
             </div>
           </div>

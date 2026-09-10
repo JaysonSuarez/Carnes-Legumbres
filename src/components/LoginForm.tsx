@@ -140,7 +140,7 @@ export function LoginForm({
                       setUsername(e.target.value);
                       setError(null);
                     }}
-                    placeholder={isAdminForm ? "andresadmin" : "mostrador"}
+                    placeholder={isAdminForm ? "admin" : "mostrador"}
                     className="pl-9 h-10 text-sm"
                   />
                 </div>

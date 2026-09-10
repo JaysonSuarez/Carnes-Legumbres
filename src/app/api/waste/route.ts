@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { supabase, genId } from "@/lib/supabase";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const tenantId = getTenantId(request);
+
     const { data: logs, error } = await supabase
       .from("cl_waste_logs")
       .select("*, product:cl_products(*)")
+      .eq("tenantId", tenantId)
       .order("date", { ascending: false });
 
     if (error) {
@@ -26,6 +30,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const tenantId = getTenantId(request);
     const body = await request.json();
     const { productId, quantity, reason, notes } = body;
 
@@ -40,6 +45,7 @@ export async function POST(request: Request) {
       .from("cl_products")
       .select("*")
       .eq("id", productId)
+      .eq("tenantId", tenantId)
       .single();
 
     if (prodErr || !product) {
@@ -61,6 +67,7 @@ export async function POST(request: Request) {
         reason,
         costLoss,
         notes: notes || null,
+        tenantId,
       })
       .select("*, product:cl_products(*)")
       .single();
@@ -69,7 +76,7 @@ export async function POST(request: Request) {
       throw logErr;
     }
 
-    // Descontar del inventario físico la merma
+    // Descontar del inventario físico la merma en el producto del mismo tenant
     const newStock = Math.max(0, (product.currentStock || 0) - Number(quantity));
     await supabase
       .from("cl_products")
@@ -77,7 +84,8 @@ export async function POST(request: Request) {
         currentStock: newStock,
         updatedAt: new Date().toISOString(),
       })
-      .eq("id", productId);
+      .eq("id", productId)
+      .eq("tenantId", tenantId);
 
     return NextResponse.json({ success: true, data: log });
   } catch (error) {

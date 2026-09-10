@@ -1,18 +1,21 @@
 import { NextResponse } from "next/server";
 import { supabase, genId } from "@/lib/supabase";
 import { calculateRealMargin, calculatePriceForTargetMargin } from "@/lib/finance";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const tenantId = getTenantId(request);
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
     const meatOnly = searchParams.get("meatOnly");
 
     let query = supabase
       .from("cl_products")
-      .select("*, category:cl_categories(*)");
+      .select("*, category:cl_categories(*)")
+      .eq("tenantId", tenantId);
 
     if (category) {
       query = query.eq("categoryId", category);
@@ -60,6 +63,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const tenantId = getTenantId(request);
     const body = await request.json();
     const {
       name,
@@ -108,6 +112,7 @@ export async function POST(request: Request) {
         currentStock: Number(currentStock),
         minStock: Number(minStock),
         isMeatCut: Boolean(isMeatCut),
+        tenantId,
       })
       .select("*, category:cl_categories(*)")
       .single();
@@ -128,6 +133,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const tenantId = getTenantId(request);
     const body = await request.json();
     const { id, ...data } = body;
 
@@ -159,6 +165,7 @@ export async function PUT(request: Request) {
       .from("cl_products")
       .update(updateData)
       .eq("id", id)
+      .eq("tenantId", tenantId)
       .select("*, category:cl_categories(*)")
       .single();
 
@@ -178,6 +185,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const tenantId = getTenantId(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -188,12 +196,12 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Eliminar referencias asociadas para garantizar integridad y permitir borrado limpio
-    await supabase.from("cl_waste_logs").delete().eq("productId", id);
-    await supabase.from("cl_batch_items").delete().eq("productId", id);
-    await supabase.from("cl_sale_items").delete().eq("productId", id);
+    // Eliminar referencias asociadas para garantizar integridad y permitir borrado limpio dentro del mismo tenant
+    await supabase.from("cl_waste_logs").delete().eq("productId", id).eq("tenantId", tenantId);
+    await supabase.from("cl_batch_items").delete().eq("productId", id).eq("tenantId", tenantId);
+    await supabase.from("cl_sale_items").delete().eq("productId", id).eq("tenantId", tenantId);
 
-    const { error } = await supabase.from("cl_products").delete().eq("id", id);
+    const { error } = await supabase.from("cl_products").delete().eq("id", id).eq("tenantId", tenantId);
 
     if (error) {
       throw error;

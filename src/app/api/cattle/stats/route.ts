@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { computeHistoricalYieldStats } from "@/lib/cattleEngine";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const tenantId = getTenantId(request);
+
     const { data: purchases, error } = await supabase
       .from("cl_cattle_purchases")
       .select(`
         *,
         cuts:cl_cattle_cuts(*)
       `)
+      .eq("tenantId", tenantId)
       .in("status", ["DEBONED", "INVENTORY_LOADED"])
       .order("purchaseDate", { ascending: false });
 

@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabase, genId } from "@/lib/supabase";
 import { calculateRealMargin } from "@/lib/finance";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const tenantId = getTenantId(request);
+
     const { data: sales, error } = await supabase
       .from("cl_sales")
       .select(`
@@ -15,6 +18,7 @@ export async function GET() {
           product:cl_products(*)
         )
       `)
+      .eq("tenantId", tenantId)
       .order("date", { ascending: false })
       .limit(50);
 
@@ -34,6 +38,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const tenantId = getTenantId(request);
     const body = await request.json();
     const {
       customerName = "Cliente Mostrador",
@@ -48,12 +53,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Obtener productos para conocer su costo actual
+    // Obtener productos para conocer su costo actual dentro del mismo tenant
     const productIds = items.map((i: any) => i.productId);
     const { data: dbProducts, error: prodErr } = await supabase
       .from("cl_products")
       .select("*, category:cl_categories(*)")
-      .in("id", productIds);
+      .in("id", productIds)
+      .eq("tenantId", tenantId);
 
     if (prodErr || !dbProducts) {
       throw prodErr || new Error("Error consultando productos de la venta");
@@ -93,6 +99,7 @@ export async function POST(request: Request) {
         subtotal,
         profit,
         realMarginPercent,
+        tenantId,
       };
     });
 
@@ -100,7 +107,7 @@ export async function POST(request: Request) {
     const realMarginPercent = calculateRealMargin(totalCost, totalAmount);
     const saleCode = `VTA-${Date.now().toString().slice(-6)}`;
 
-    // 1. Insertar venta
+    // 1. Insertar venta con tenantId
     const { data: newSale, error: saleErr } = await supabase
       .from("cl_sales")
       .insert({
@@ -112,6 +119,7 @@ export async function POST(request: Request) {
         totalCost,
         totalProfit,
         realMarginPercent,
+        tenantId,
       })
       .select()
       .single();
@@ -120,7 +128,7 @@ export async function POST(request: Request) {
       throw saleErr;
     }
 
-    // 2. Insertar items
+    // 2. Insertar items con tenantId
     const { error: itemsErr } = await supabase
       .from("cl_sale_items")
       .insert(saleItemsData);
@@ -129,7 +137,7 @@ export async function POST(request: Request) {
       throw itemsErr;
     }
 
-    // 3. Descontar stock y evaluar alertas
+    // 3. Descontar stock y evaluar alertas en productos del tenant
     const stockAlerts = [];
     for (const item of items) {
       const currentProd = productMap.get(item.productId);
@@ -141,7 +149,8 @@ export async function POST(request: Request) {
             currentStock: newStock,
             updatedAt: new Date().toISOString(),
           })
-          .eq("id", item.productId);
+          .eq("id", item.productId)
+          .eq("tenantId", tenantId);
 
         if (newStock <= currentProd.minStock) {
           stockAlerts.push({
@@ -169,6 +178,7 @@ export async function POST(request: Request) {
         )
       `)
       .eq("id", saleId)
+      .eq("tenantId", tenantId)
       .single();
 
     return NextResponse.json({

@@ -80,7 +80,7 @@ export default function MostradorPage() {
       <LoginForm
         requiredRole="cashier"
         title="Terminal de Mostrador & Caja"
-        subtitle="Ingreso autorizado para el encargado de mostrador (mostrador)."
+        subtitle="Ingreso autorizado para personal de mostrador y ventas."
         onSuccess={(newSession) => setSession(newSession)}
       />
     );

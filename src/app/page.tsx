@@ -70,7 +70,7 @@ export default function Home() {
       <LoginForm
         requiredRole="admin"
         title="Panel de Administración"
-        subtitle="Ingreso exclusivo para el dueño del negocio (andresadmin)."
+        subtitle="Ingreso exclusivo para administración y gestión operativa."
         onSuccess={(newSession) => setSession(newSession)}
       />
     );
@@ -90,6 +90,7 @@ export default function Home() {
         marginAlertCount={marginAlertCount}
         stockAlertCount={stockAlertCount}
         currentUser={session.name}
+        tenantId={session.tenantId}
         onLogout={handleLogout}
       />
 

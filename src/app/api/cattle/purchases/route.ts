@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabase, genId } from "@/lib/supabase";
 import { calculateAnimalDeboning, DeboningCutInput } from "@/lib/cattleEngine";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const tenantId = getTenantId(request);
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const animalType = searchParams.get("animalType");
@@ -20,6 +22,7 @@ export async function GET(request: Request) {
           product:cl_products(*)
         )
       `)
+      .eq("tenantId", tenantId)
       .order("purchaseDate", { ascending: false });
 
     if (status) query = query.eq("status", status);
@@ -42,6 +45,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const tenantId = getTenantId(request);
     const body = await request.json();
     const {
       batchNumber,
@@ -131,6 +135,7 @@ export async function POST(request: Request) {
       targetMarginPercent: Number(targetMarginPercent),
       status: initialStatus,
       notes: notes || null,
+      tenantId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -175,6 +180,7 @@ export async function POST(request: Request) {
         realMarginPercent: c.realMarginPercent,
         minSellPrice: c.minSellPrice,
         recommendedPrice: c.recommendedPrice,
+        tenantId,
         createdAt: new Date().toISOString(),
       }));
 
@@ -193,6 +199,7 @@ export async function POST(request: Request) {
         )
       `)
       .eq("id", id)
+      .eq("tenantId", tenantId)
       .single();
 
     if (getErr) throw getErr;

@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const tenantId = getTenantId(request);
+
     const { data: categories, error } = await supabase
       .from("cl_categories")
       .select("*, products:cl_products(count)")
+      .eq("tenantId", tenantId)
       .order("name", { ascending: true });
 
     if (error) {

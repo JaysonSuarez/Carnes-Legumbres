@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabase, genId } from "@/lib/supabase";
 import { calculateRealMargin } from "@/lib/finance";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const tenantId = getTenantId(request);
+
     const { data: batches, error } = await supabase
       .from("cl_batches")
       .select(`
@@ -15,6 +18,7 @@ export async function GET() {
           product:cl_products(*)
         )
       `)
+      .eq("tenantId", tenantId)
       .order("date", { ascending: false });
 
     if (error) {
@@ -66,6 +70,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const tenantId = getTenantId(request);
     const body = await request.json();
     const {
       batchNumber,
@@ -98,7 +103,7 @@ export async function POST(request: Request) {
     const projectedRealMargin = calculateRealMargin(Number(totalCost), projectedRevenue);
     const batchId = genId("batch");
 
-    // 1. Insertar compra / lote
+    // 1. Insertar compra / lote con tenantId
     const { error: batchErr } = await supabase.from("cl_batches").insert({
       id: batchId,
       batchNumber,
@@ -111,13 +116,14 @@ export async function POST(request: Request) {
       projectedRevenue,
       projectedRealMargin,
       status: "ACTIVE",
+      tenantId,
     });
 
     if (batchErr) {
       throw batchErr;
     }
 
-    // 2. Insertar items del lote
+    // 2. Insertar items del lote con tenantId
     const batchItemsData = items.map((item: any) => ({
       id: genId("bitem"),
       batchId,
@@ -129,6 +135,7 @@ export async function POST(request: Request) {
       actualSellPrice: Number(item.actualSellPrice),
       projectedSubtotal: Number(item.quantityKg) * Number(item.actualSellPrice),
       soldQuantity: 0,
+      tenantId,
     }));
 
     const { error: itemsErr } = await supabase
@@ -139,12 +146,13 @@ export async function POST(request: Request) {
       throw itemsErr;
     }
 
-    // 3. Actualizar stock y precios en la tabla de productos
+    // 3. Actualizar stock y precios en la tabla de productos del mismo tenant
     for (const item of items) {
       const { data: prod } = await supabase
         .from("cl_products")
         .select("currentStock")
         .eq("id", item.productId)
+        .eq("tenantId", tenantId)
         .single();
 
       const newStock = (prod?.currentStock || 0) + Number(item.quantityKg);
@@ -159,7 +167,11 @@ export async function POST(request: Request) {
         updateData.sellPrice = Number(item.actualSellPrice);
       }
 
-      await supabase.from("cl_products").update(updateData).eq("id", item.productId);
+      await supabase
+        .from("cl_products")
+        .update(updateData)
+        .eq("id", item.productId)
+        .eq("tenantId", tenantId);
     }
 
     // Consultar lote completo creado
@@ -173,6 +185,7 @@ export async function POST(request: Request) {
         )
       `)
       .eq("id", batchId)
+      .eq("tenantId", tenantId)
       .single();
 
     return NextResponse.json({ success: true, data: completeBatch });

@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabase, genId } from "@/lib/supabase";
 import { calculateRealMargin } from "@/lib/finance";
+import { getTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    const tenantId = getTenantId(request);
     const { actions } = await request.json();
 
     if (!Array.isArray(actions) || actions.length === 0) {
@@ -22,12 +24,13 @@ export async function POST(request: Request) {
           const { customerName, paymentMethod, items } = payload;
           if (!Array.isArray(items) || items.length === 0) continue;
 
-          // Buscar productos para calcular costos reales y márgenes
+          // Buscar productos para calcular costos reales y márgenes dentro del tenant
           const productIds = items.map((i: any) => i.productId);
           const { data: products } = await supabase
             .from("cl_products")
             .select("*")
-            .in("id", productIds);
+            .in("id", productIds)
+            .eq("tenantId", tenantId);
 
           const productMap = new Map((products || []).map((p: any) => [p.id, p]));
 
@@ -57,6 +60,7 @@ export async function POST(request: Request) {
               subtotal,
               profit,
               realMarginPercent,
+              tenantId,
             });
           }
 
@@ -65,7 +69,7 @@ export async function POST(request: Request) {
 
           const saleCode = `TKT-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`;
 
-          // 1. Insertar venta
+          // 1. Insertar venta con tenantId
           const { error: saleErr } = await supabase.from("cl_sales").insert({
             id: saleId,
             saleCode,
@@ -75,19 +79,20 @@ export async function POST(request: Request) {
             totalCost,
             totalProfit,
             realMarginPercent: overallRealMarginPercent,
+            tenantId,
           });
 
           if (saleErr) {
             throw saleErr;
           }
 
-          // 2. Insertar items
+          // 2. Insertar items con tenantId
           const { error: itemsErr } = await supabase.from("cl_sale_items").insert(saleItemsData);
           if (itemsErr) {
             throw itemsErr;
           }
 
-          // 3. Descontar inventario de cada producto
+          // 3. Descontar inventario de cada producto dentro del mismo tenant
           for (const item of items) {
             const currentProd = productMap.get(item.productId);
             if (currentProd) {
@@ -98,7 +103,8 @@ export async function POST(request: Request) {
                   currentStock: newStock,
                   updatedAt: new Date().toISOString(),
                 })
-                .eq("id", item.productId);
+                .eq("id", item.productId)
+                .eq("tenantId", tenantId);
             }
           }
 
@@ -109,6 +115,7 @@ export async function POST(request: Request) {
             .from("cl_products")
             .select("*")
             .eq("id", productId)
+            .eq("tenantId", tenantId)
             .single();
 
           const costLoss = product ? (product.costPrice || 0) * quantity : 0;
@@ -120,6 +127,7 @@ export async function POST(request: Request) {
             reason,
             costLoss,
             notes,
+            tenantId,
           });
 
           if (product) {
@@ -130,7 +138,8 @@ export async function POST(request: Request) {
                 currentStock: newStock,
                 updatedAt: new Date().toISOString(),
               })
-              .eq("id", productId);
+              .eq("id", productId)
+              .eq("tenantId", tenantId);
           }
 
           processedIds.push(id);
@@ -146,6 +155,7 @@ export async function POST(request: Request) {
             totalWeightKg: totalWeightKg ? Number(totalWeightKg) : null,
             batchType: batchType || "MEAT_WHOLESALE",
             notes,
+            tenantId,
           });
 
           if (batchErr) {
@@ -163,6 +173,7 @@ export async function POST(request: Request) {
               suggestedSellPrice: item.suggestedSellPrice || 0,
               actualSellPrice: item.actualSellPrice || 0,
               projectedSubtotal: (item.quantityKg || 0) * (item.actualSellPrice || 0),
+              tenantId,
             }));
 
             await supabase.from("cl_batch_items").insert(batchItemsData);
@@ -172,6 +183,7 @@ export async function POST(request: Request) {
                 .from("cl_products")
                 .select("currentStock")
                 .eq("id", item.productId)
+                .eq("tenantId", tenantId)
                 .single();
 
               const newStock = (p?.currentStock || 0) + (item.quantityKg || 0);
@@ -182,7 +194,11 @@ export async function POST(request: Request) {
               if (item.costAttributed) updateData.costPrice = item.costAttributed;
               if (item.actualSellPrice) updateData.sellPrice = item.actualSellPrice;
 
-              await supabase.from("cl_products").update(updateData).eq("id", item.productId);
+              await supabase
+                .from("cl_products")
+                .update(updateData)
+                .eq("id", item.productId)
+                .eq("tenantId", tenantId);
             }
           }
 
