@@ -53,6 +53,19 @@ export async function POST(request: Request) {
       );
     }
 
+    if (paymentMethod === "CREDITO") {
+      const cleanName = customerName ? customerName.trim() : "";
+      if (!cleanName || cleanName.toLowerCase() === "cliente mostrador") {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Para registrar una venta a crédito (fiado) es obligatorio ingresar el nombre o identificación del cliente.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Obtener productos para conocer su costo actual dentro del mismo tenant
     const productIds = items.map((i: any) => i.productId);
     const { data: dbProducts, error: prodErr } = await supabase
@@ -113,7 +126,7 @@ export async function POST(request: Request) {
       .insert({
         id: saleId,
         saleCode,
-        customerName,
+        customerName: customerName.trim(),
         paymentMethod,
         totalAmount,
         totalCost,
@@ -128,7 +141,34 @@ export async function POST(request: Request) {
       throw saleErr;
     }
 
-    // 2. Insertar items con tenantId
+    // 2. Si el método de pago es CRÉDITO / FIADO, registrar en cl_credits
+    if (paymentMethod === "CREDITO") {
+      const creditId = genId("crd");
+      const { error: creditErr } = await supabase
+        .from("cl_credits")
+        .insert({
+          id: creditId,
+          tenantId,
+          saleId,
+          customerName: customerName.trim(),
+          customerPhone: body.customerPhone ? String(body.customerPhone).trim() : null,
+          originalAmount: totalAmount,
+          currentBalance: totalAmount,
+          dailyInterestRate: 0.01,
+          creditDate: new Date().toISOString(),
+          status: "PENDIENTE",
+          totalInterestPaid: 0,
+          totalCapitalPaid: 0,
+          notes: body.notes ? String(body.notes).trim() : null,
+        });
+
+      if (creditErr) {
+        console.error("Error al registrar crédito:", creditErr);
+        throw new Error(`Error registrando el crédito: ${creditErr.message}`);
+      }
+    }
+
+    // 3. Insertar items con tenantId
     const { error: itemsErr } = await supabase
       .from("cl_sale_items")
       .insert(saleItemsData);

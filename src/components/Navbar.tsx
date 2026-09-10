@@ -17,6 +17,7 @@ import {
   ChevronRight,
   ShieldCheck,
   LogOut,
+  WalletCards,
 } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +31,8 @@ export type ActiveTab =
   | "smart-pricing"
   | "inventory"
   | "pos"
-  | "waste";
+  | "waste"
+  | "credits";
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -68,6 +70,16 @@ export function Navbar({
       icon: TrendingUp,
     },
     {
+      id: "pos" as ActiveTab,
+      label: "Punto de Venta",
+      icon: ShoppingCart,
+    },
+    {
+      id: "credits" as ActiveTab,
+      label: "Cartera & Fiados",
+      icon: WalletCards,
+    },
+    {
       id: "reports" as ActiveTab,
       label: "Registro & Facturas",
       icon: Receipt,
@@ -82,11 +94,6 @@ export function Navbar({
       label: "Inventario",
       icon: Package,
       alertCount: stockAlertCount > 0 ? stockAlertCount : marginAlertCount,
-    },
-    {
-      id: "pos" as ActiveTab,
-      label: "Punto de Venta",
-      icon: ShoppingCart,
     },
   ];
 
@@ -363,6 +370,44 @@ export function Navbar({
                 </div>
                 <ChevronRight className="w-4 h-4 text-emerald-500" />
               </Link>
+
+              {/* Cartera & Fiados */}
+              <button
+                type="button"
+                onClick={() => handleSelectTab("credits")}
+                className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                  activeTab === "credits"
+                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                    : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      activeTab === "credits"
+                        ? "bg-amber-600 text-white"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    <WalletCards className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold">
+                      Cartera & Fiados
+                    </div>
+                    <div
+                      className={`text-[11px] ${
+                        activeTab === "credits"
+                          ? "text-slate-300"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      Cuentas por cobrar, tasa 1% diario y abonos
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 opacity-50" />
+              </button>
 
               {/* Calculadora de Precios */}
               <button

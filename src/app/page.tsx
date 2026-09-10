@@ -7,6 +7,7 @@ import { SmartPricingView } from "@/components/SmartPricingView";
 import { InventoryView } from "@/components/InventoryView";
 import { PosView } from "@/components/PosView";
 import { ReportsView } from "@/components/ReportsView";
+import { CreditsView } from "@/components/CreditsView";
 
 import { LoginForm } from "@/components/LoginForm";
 import { getSession, logout, AuthSession } from "@/lib/auth";
@@ -116,6 +117,8 @@ export default function Home() {
             }}
           />
         )}
+
+        {activeTab === "credits" && <CreditsView />}
       </main>
 
       {/* Footer Minimalista (Oculto en móvil para no estorbar con la navegación inferior) */}

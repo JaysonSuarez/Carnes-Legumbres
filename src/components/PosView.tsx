@@ -270,6 +270,9 @@ export function PosView({
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [customerName, setCustomerName] = useState("Cliente Mostrador");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [creditNotes, setCreditNotes] = useState("");
+  const [customerError, setCustomerError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("EFECTIVO");
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -493,10 +496,26 @@ export function PosView({
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
+
+    if (paymentMethod === "CREDITO") {
+      const cleanName = customerName.trim();
+      if (!cleanName || cleanName.toLowerCase() === "cliente mostrador") {
+        setCustomerError("Ingresa el nombre o identificación del cliente para registrar el fiado.");
+        dispatchStockToast({
+          title: "⚠️ Nombre requerido",
+          message: "Para ventas a crédito o fiado es obligatorio registrar el nombre del cliente.",
+          type: "warning",
+        });
+        return;
+      }
+    }
+    setCustomerError("");
     setIsProcessing(true);
 
     const payload = {
       customerName: customerName.trim() || "Cliente Mostrador",
+      customerPhone: customerPhone.trim() || undefined,
+      notes: creditNotes.trim() || undefined,
       paymentMethod,
       items: cart.map((i) => ({
         productId: i.product.id,
@@ -546,6 +565,10 @@ export function PosView({
       });
 
       setCart([]);
+      setCustomerName("Cliente Mostrador");
+      setCustomerPhone("");
+      setCreditNotes("");
+      setPaymentMethod("EFECTIVO");
       setMobilePosTab("catalog");
       const cached = getCachedProducts();
       if (cached) setProducts(cached);
@@ -591,6 +614,10 @@ export function PosView({
       }
 
       setCart([]);
+      setCustomerName("Cliente Mostrador");
+      setCustomerPhone("");
+      setCreditNotes("");
+      setPaymentMethod("EFECTIVO");
       loadProducts();
       loadQuickSelectors();
       setMobilePosTab("catalog");
@@ -922,35 +949,103 @@ export function PosView({
 
             <CardContent className="p-5 pt-3 space-y-3">
               {/* Cliente y Método de Pago */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
-                    Cliente
-                  </label>
-                  <Input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="h-8 text-xs"
-                    placeholder="Cliente Mostrador"
-                  />
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
+                      {paymentMethod === "CREDITO" ? (
+                        <span className="text-amber-700 font-bold">Cliente * (Obligatorio)</span>
+                      ) : (
+                        "Cliente"
+                      )}
+                    </label>
+                    <Input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => {
+                        setCustomerName(e.target.value);
+                        if (customerError) setCustomerError("");
+                      }}
+                      className={`h-8 text-xs ${
+                        customerError
+                          ? "border-red-500 ring-1 ring-red-500 bg-red-50/40"
+                          : paymentMethod === "CREDITO"
+                          ? "border-amber-300 bg-amber-50/30"
+                          : ""
+                      }`}
+                      placeholder={paymentMethod === "CREDITO" ? "Nombre de la persona" : "Cliente Mostrador"}
+                    />
+                    {customerError && (
+                      <p className="text-[10px] text-red-600 font-medium mt-0.5">{customerError}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
+                      Medio de Pago
+                    </label>
+                    <select
+                      value={paymentMethod}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPaymentMethod(val);
+                        if (val === "CREDITO" && customerName === "Cliente Mostrador") {
+                          setCustomerName("");
+                        }
+                      }}
+                      className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-900 shadow-xs focus:outline-none"
+                    >
+                      <option value="EFECTIVO">Efectivo</option>
+                      <option value="TRANSFERENCIA">Transferencia / Nequi</option>
+                      <option value="TARJETA">Tarjeta Débito/Crédito</option>
+                      <option value="CREDITO">Fiado / Crédito (1% diario)</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
-                    Medio de Pago
-                  </label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-900 shadow-xs focus:outline-none"
-                  >
-                    <option value="EFECTIVO">Efectivo</option>
-                    <option value="TRANSFERENCIA">Transferencia / Nequi</option>
-                    <option value="TARJETA">Tarjeta Débito/Crédito</option>
-                    <option value="CREDITO">Fiado / Crédito</option>
-                  </select>
-                </div>
+                {/* Campos extra y aviso de interés al fiar */}
+                {paymentMethod === "CREDITO" && (
+                  <div className="space-y-2 pt-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
+                          Teléfono / Celular (Opcional)
+                        </label>
+                        <Input
+                          type="tel"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          className="h-8 text-xs"
+                          placeholder="Ej: 310 123 4567"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
+                          Nota / Plazo acordado
+                        </label>
+                        <Input
+                          type="text"
+                          value={creditNotes}
+                          onChange={(e) => setCreditNotes(e.target.value)}
+                          className="h-8 text-xs"
+                          placeholder="Ej: Paga el sábado"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                      <span className="text-amber-600 font-bold text-sm shrink-0">ℹ️</span>
+                      <div className="space-y-0.5 min-w-0">
+                        <p className="font-bold text-[11px] text-amber-950">
+                          Venta a Crédito / Fiado (Interés simple 1% diario)
+                        </p>
+                        <p className="text-[10px] text-amber-800 leading-tight">
+                          Se cobrará el 1% diario sobre el capital sin interés compuesto ({formatCurrency(Math.round(totalAmount * 0.01))}/día por los {formatCurrency(totalAmount)} de este ticket).
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Lista de Productos en el Carrito con Iconos */}
@@ -1054,10 +1149,18 @@ export function PosView({
               onClick={handleCheckout}
               disabled={cart.length === 0 || isProcessing}
               size="default"
-              className="w-full font-bold text-sm h-11 shadow-sm cursor-pointer"
+              className={`w-full font-bold text-sm h-11 shadow-sm cursor-pointer ${
+                paymentMethod === "CREDITO"
+                  ? "bg-amber-600 hover:bg-amber-700 text-white"
+                  : ""
+              }`}
             >
               <Receipt className="w-4 h-4 mr-1.5" />
-              {isProcessing ? "Generando Factura..." : "Cobrar Ticket y Generar Factura"}
+              {isProcessing
+                ? "Registrando..."
+                : paymentMethod === "CREDITO"
+                ? "Registrar Venta a Crédito / Fiado"
+                : "Cobrar Ticket y Generar Factura"}
             </Button>
           </CardFooter>
         </Card>

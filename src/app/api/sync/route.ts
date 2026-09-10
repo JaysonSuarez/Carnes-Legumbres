@@ -86,6 +86,25 @@ export async function POST(request: Request) {
             throw saleErr;
           }
 
+          // Si es venta a crédito, crear registro en cl_credits
+          if (paymentMethod === "CREDITO") {
+            await supabase.from("cl_credits").insert({
+              id: genId("crd"),
+              tenantId,
+              saleId,
+              customerName: customerName ? customerName.trim() : "Cliente Crédito",
+              customerPhone: payload.customerPhone ? String(payload.customerPhone).trim() : null,
+              originalAmount: totalAmount,
+              currentBalance: totalAmount,
+              dailyInterestRate: 0.01,
+              creditDate: new Date().toISOString(),
+              status: "PENDIENTE",
+              totalInterestPaid: 0,
+              totalCapitalPaid: 0,
+              notes: payload.notes ? String(payload.notes).trim() : "Sincronizado offline",
+            });
+          }
+
           // 2. Insertar items con tenantId
           const { error: itemsErr } = await supabase.from("cl_sale_items").insert(saleItemsData);
           if (itemsErr) {

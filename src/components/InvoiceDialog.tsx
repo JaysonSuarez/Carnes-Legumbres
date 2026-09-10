@@ -254,8 +254,16 @@ export function InvoiceDialog({
               style={{ display: "flex", justifyContent: "space-between" }}
             >
               <span>Medio de Pago:</span>
-              <span className="text-slate-900 font-semibold" style={{ color: "#0f172a", fontWeight: 700 }}>
-                {sale.paymentMethod}
+              <span
+                className={`font-semibold ${
+                  sale.paymentMethod === "CREDITO" ? "text-amber-800 font-bold" : "text-slate-900"
+                }`}
+                style={{
+                  color: sale.paymentMethod === "CREDITO" ? "#92400e" : "#0f172a",
+                  fontWeight: 700,
+                }}
+              >
+                {sale.paymentMethod === "CREDITO" ? "CRÉDITO / FIADO" : sale.paymentMethod}
               </span>
             </div>
           </div>
@@ -424,6 +432,36 @@ export function InvoiceDialog({
               </span>
             </div>
           </div>
+
+          {/* Cuadro Legal de Venta a Crédito / Fiado */}
+          {sale.paymentMethod === "CREDITO" && (
+            <div
+              style={{
+                marginTop: "6px",
+                padding: "8px",
+                border: "1px dashed #d97706",
+                backgroundColor: "#fffbeb",
+                borderRadius: "4px",
+                fontSize: "11px",
+                color: "#78350f",
+                lineHeight: "1.35",
+              }}
+            >
+              <div style={{ fontWeight: 800, textTransform: "uppercase", marginBottom: "3px", color: "#92400e", fontSize: "10.5px" }}>
+                OBLIGACIÓN A CRÉDITO (FIADO)
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Capital fiado:</span>
+                <span style={{ fontWeight: 700 }}>{formatCurrency(sale.totalAmount)}</span>
+              </div>
+              <div style={{ marginTop: "3px", fontSize: "10px", color: "#92400e" }}>
+                * Tasa pactada: <strong>1.0% diario simple</strong> sobre el capital insoluto ({formatCurrency(Math.round(sale.totalAmount * 0.01))}/día). Sin interés compuesto.
+              </div>
+              <div style={{ marginTop: "18px", paddingTop: "6px", borderTop: "1px solid #d97706", fontSize: "10px", textAlign: "left" }}>
+                Firma Deudor: __________________________
+              </div>
+            </div>
+          )}
 
           {/* Línea Divisoria Sutil */}
           <div

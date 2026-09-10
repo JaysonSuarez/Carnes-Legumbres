@@ -11,9 +11,11 @@ import {
   Clock,
   LogOut,
   User,
+  WalletCards,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PosView } from "@/components/PosView";
+import { CreditsView } from "@/components/CreditsView";
 import { OfflineSyncIndicator } from "@/components/OfflineSyncIndicator";
 import { LoginForm } from "@/components/LoginForm";
 import { getSession, logout, AuthSession, hasRoleAccess } from "@/lib/auth";
@@ -23,6 +25,7 @@ export default function MostradorPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>("");
+  const [activeView, setActiveView] = useState<"pos" | "credits">("pos");
 
   useEffect(() => {
     const s = getSession();
@@ -150,6 +153,31 @@ export default function MostradorPage() {
               )}
             </button>
 
+            {/* Botón Cartera & Fiados */}
+            <button
+              type="button"
+              onClick={() => setActiveView(activeView === "pos" ? "credits" : "pos")}
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                activeView === "credits"
+                  ? "bg-slate-900 text-white"
+                  : "bg-amber-500 hover:bg-amber-600 text-slate-950"
+              }`}
+              title={activeView === "pos" ? "Consultar fiados y registrar abonos" : "Volver a la caja de ventas"}
+            >
+              {activeView === "pos" ? (
+                <>
+                  <WalletCards className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Cartera / Fiados</span>
+                  <span className="sm:hidden">Fiados</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="w-3.5 h-3.5" />
+                  <span>Volver a Caja</span>
+                </>
+              )}
+            </button>
+
             {/* Enlace al panel principal solo si la sesión activa es de Administrador */}
             {session.role === "admin" && (
               <Link
@@ -179,7 +207,11 @@ export default function MostradorPage() {
 
       {/* Contenedor Principal del Mostrador */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 py-3 sm:px-6 sm:py-5 lg:p-6 pb-20 md:pb-6">
-        <PosView showHeader={false} />
+        {activeView === "pos" ? (
+          <PosView showHeader={false} />
+        ) : (
+          <CreditsView />
+        )}
       </main>
 
       {/* Footer Minimalista del Mostrador */}

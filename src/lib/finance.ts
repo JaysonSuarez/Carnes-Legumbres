@@ -350,3 +350,73 @@ export function calculateCattleYield(
 // Re-exportar motor completo de ganado y desposte
 export * from "./cattleEngine";
 
+/**
+ * ============================================================================
+ * MOTOR DE CRÉDITO Y FIADOS: INTERÉS SIMPLE DIARIO SOBRE CAPITAL INSOLUTO
+ * ============================================================================
+ */
+
+export interface CreditCalculation {
+  capital: number;
+  daysElapsed: number;
+  dailyRate: number;
+  dailyAccrual: number;
+  accruedInterest: number;
+  totalDebt: number;
+}
+
+/**
+ * Calcula los días calendario transcurridos entre la fecha del crédito y la fecha de corte.
+ * Si es el mismo día, retorna 0.
+ */
+export function calculateElapsedCreditDays(
+  creditDate: string | Date,
+  asOfDate: string | Date = new Date()
+): number {
+  const cDate = new Date(creditDate);
+  const aDate = new Date(asOfDate);
+  const startCredit = new Date(cDate.getFullYear(), cDate.getMonth(), cDate.getDate()).getTime();
+  const startAsOf = new Date(aDate.getFullYear(), aDate.getMonth(), aDate.getDate()).getTime();
+  const diffMs = startAsOf - startCredit;
+  if (diffMs <= 0) return 0;
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Calcula el interés simple diario estrictamente sobre el saldo de capital.
+ * Fórmula: Capital * TasaDiaria (0.01) * DíasTranscurridos
+ * Nota: Es interés simple (no compuesto). No se cobra interés sobre los intereses previos.
+ */
+export function calculateSimpleDailyInterest(
+  capital: number,
+  daysElapsed: number,
+  dailyRate = 0.01
+): number {
+  if (capital <= 0 || daysElapsed <= 0) return 0;
+  return Math.round(capital * dailyRate * daysElapsed);
+}
+
+/**
+ * Realiza el cálculo completo para una obligación a crédito/fiado.
+ */
+export function calculateCreditState(
+  currentBalance: number,
+  creditDate: string | Date,
+  dailyRate = 0.01,
+  asOfDate: string | Date = new Date()
+): CreditCalculation {
+  const daysElapsed = calculateElapsedCreditDays(creditDate, asOfDate);
+  const accruedInterest = calculateSimpleDailyInterest(currentBalance, daysElapsed, dailyRate);
+  const dailyAccrual = Math.round(currentBalance * dailyRate);
+  const totalDebt = Math.round(currentBalance + accruedInterest);
+
+  return {
+    capital: currentBalance,
+    daysElapsed,
+    dailyRate,
+    dailyAccrual,
+    accruedInterest,
+    totalDebt,
+  };
+}
+
