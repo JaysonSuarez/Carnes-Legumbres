@@ -180,11 +180,12 @@ export function InventoryView({
     setCreateLoading(true);
     try {
       const selectedCat = categories.find((c) => c.id === catId);
+      const catNameNorm = selectedCat?.name?.toLowerCase() || "";
       const isMeat =
-        selectedCat?.name?.toLowerCase().includes("res") ||
-        selectedCat?.name?.toLowerCase().includes("carne") ||
-        selectedCat?.name?.toLowerCase().includes("pollo") ||
-        selectedCat?.name?.toLowerCase().includes("cerdo") ||
+        catNameNorm.includes("carne de res") ||
+        catNameNorm.includes("bovino") ||
+        catNameNorm.includes("pollo") ||
+        catNameNorm.includes("cerdo") ||
         Boolean(formData.isMeatCut);
 
       const res = await fetch("/api/products", {
@@ -1115,13 +1116,31 @@ export function InventoryView({
                 </>
               ) : (
                 <>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Nombre</label>
-                    <Input
-                      type="text"
-                      value={editingProduct.name}
-                      onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Nombre</label>
+                      <Input
+                        type="text"
+                        value={editingProduct.name}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Categoría</label>
+                      <select
+                        value={editingProduct.categoryId}
+                        onChange={(e) =>
+                          setEditingProduct({ ...editingProduct, categoryId: e.target.value })
+                        }
+                        className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 py-1 text-xs text-slate-900 shadow-xs focus:outline-none focus:ring-1 focus:ring-slate-900"
+                      >
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">

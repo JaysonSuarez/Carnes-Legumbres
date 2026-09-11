@@ -794,11 +794,13 @@ export function isMeatProduct(p: any): boolean {
   if (p.isMeatCut === true) return true;
   if (catType === "CARNICERIA") return true;
   if (
-    catSlug.includes("res") ||
-    catSlug.includes("carne") ||
+    catSlug === "carnes-res" ||
+    catSlug.includes("carne-res") ||
+    catSlug.includes("bovino") ||
     catSlug.includes("cerdo") ||
     catSlug.includes("pollo") ||
-    catSlug.includes("ganado")
+    catSlug.includes("ganado") ||
+    (catSlug.includes("carne") && !catSlug.includes("legumbre"))
   ) {
     return true;
   }

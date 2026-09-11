@@ -18,6 +18,7 @@ import {
   Beef,
   Drumstick,
   Ham,
+  Fish,
   Sparkles,
   Plus,
   Minus,
@@ -385,14 +386,17 @@ export function DespensaView() {
   // Helper de icono por categoría
   const getCategoryIcon = (slug?: string) => {
     if (!slug) return <Boxes className="w-4 h-4 text-indigo-600" />;
-    if (slug.includes("res") || slug.includes("carne"))
-      return <Beef className="w-4 h-4 text-rose-600" />;
-    if (slug.includes("pollo") || slug.includes("ave"))
-      return <Drumstick className="w-4 h-4 text-amber-600" />;
-    if (slug.includes("cerdo"))
-      return <Ham className="w-4 h-4 text-pink-600" />;
-    if (slug.includes("legumbre") || slug.includes("verdura"))
+    const s = slug.toLowerCase();
+    if (s.includes("legumbre") || s.includes("verdura"))
       return <LeafyGreen className="w-4 h-4 text-emerald-600" />;
+    if (s.includes("pescado") || s.includes("marisco"))
+      return <Fish className="w-4 h-4 text-cyan-600" />;
+    if (s.includes("carne-res") || s.includes("carnes-res") || s.includes("bovino") || s === "res" || (s.includes("carne") && !s.includes("cerdo") && !s.includes("pollo") && !s.includes("legumbre")))
+      return <Beef className="w-4 h-4 text-rose-600" />;
+    if (s.includes("pollo") || s.includes("ave"))
+      return <Drumstick className="w-4 h-4 text-amber-600" />;
+    if (s.includes("cerdo"))
+      return <Ham className="w-4 h-4 text-pink-600" />;
     return <Boxes className="w-4 h-4 text-indigo-600" />;
   };
 

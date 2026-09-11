@@ -23,6 +23,9 @@ import {
   Scale,
   Coins,
   Edit2,
+  Fish,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   Card,
@@ -88,6 +91,8 @@ interface CartItem {
 // Configuración de Iconos, Colores y Etiquetas por Categoría General
 export const getCategoryConfig = (categoryName: string) => {
   const norm = categoryName.toLowerCase();
+
+  // 1. Pollos y Aves
   if (norm.includes("pollo") || norm.includes("ave")) {
     return {
       label: "Pollos y Aves",
@@ -98,6 +103,8 @@ export const getCategoryConfig = (categoryName: string) => {
       accentBg: "bg-amber-100",
     };
   }
+
+  // 2. Cortes de Cerdo
   if (norm.includes("cerdo") || norm.includes("porcino")) {
     return {
       label: "Cortes de Cerdo",
@@ -108,17 +115,14 @@ export const getCategoryConfig = (categoryName: string) => {
       accentBg: "bg-rose-100",
     };
   }
-  if (norm.includes("res") || norm.includes("carne") || norm.includes("bovino")) {
-    return {
-      label: "Carnes de Res",
-      shortLabel: "Carnes",
-      icon: Beef,
-      badgeBg: "bg-red-50 text-red-800 border-red-200",
-      textColor: "text-red-600",
-      accentBg: "bg-red-100",
-    };
-  }
-  if (norm.includes("legumbre") || norm.includes("verdura") || norm.includes("fruta")) {
+
+  // 3. Legumbres y Verduras (DEBE evaluarse ANTES de Carnes de Res para evitar que 'legumb-RES' coincida)
+  if (
+    norm.includes("legumbre") ||
+    norm.includes("verdura") ||
+    norm.includes("fruta") ||
+    norm.includes("hortaliza")
+  ) {
     return {
       label: "Verduras y Legumbres",
       shortLabel: "Verduras",
@@ -128,6 +132,60 @@ export const getCategoryConfig = (categoryName: string) => {
       accentBg: "bg-emerald-100",
     };
   }
+
+  // 4. Pescados y Mariscos
+  if (
+    norm.includes("pescado") ||
+    norm.includes("marisco") ||
+    norm.includes("pez") ||
+    norm.includes("mar")
+  ) {
+    return {
+      label: "Pescados y Mariscos",
+      shortLabel: "Pescados",
+      icon: Fish,
+      badgeBg: "bg-cyan-50 text-cyan-800 border-cyan-200",
+      textColor: "text-cyan-600",
+      accentBg: "bg-cyan-100",
+    };
+  }
+
+  // 5. Carnes de Res (Regla precisa: res como palabra completa, 'carne de res', o 'bovino')
+  if (
+    norm.includes("carne de res") ||
+    norm.includes("bovino") ||
+    norm.includes("vacuno") ||
+    /\bres\b/i.test(norm) ||
+    (norm.includes("carne") && !norm.includes("cerdo") && !norm.includes("pollo") && !norm.includes("legumbre"))
+  ) {
+    return {
+      label: "Carnes de Res",
+      shortLabel: "Carnes",
+      icon: Beef,
+      badgeBg: "bg-red-50 text-red-800 border-red-200",
+      textColor: "text-red-600",
+      accentBg: "bg-red-100",
+    };
+  }
+
+  // 6. Abarrotes y Despensa
+  if (
+    norm.includes("abarrote") ||
+    norm.includes("despensa") ||
+    norm.includes("grano") ||
+    norm.includes("viveres") ||
+    norm.includes("víveres")
+  ) {
+    return {
+      label: "Abarrotes y Despensa",
+      shortLabel: "Abarrotes",
+      icon: Package,
+      badgeBg: "bg-blue-50 text-blue-800 border-blue-200",
+      textColor: "text-blue-600",
+      accentBg: "bg-blue-100",
+    };
+  }
+
   return {
     label: categoryName,
     shortLabel: categoryName,
@@ -179,13 +237,20 @@ export const getProductConfig = (productName: string, categoryName = "") => {
     };
   }
 
-  // 3. Tomate / Cebolla / Aguacate / Verduras -> LeafyGreen
+  // 3. Tomate / Cebolla / Aguacate / Verduras / Aliños -> LeafyGreen
   if (
     norm.includes("tomate") ||
     norm.includes("cebolla") ||
-    norm.includes("aguacate") ||
+    norm.includes("cebollin") ||
+    norm.includes("cebollín") ||
+    norm.includes("cilantro") ||
+    norm.includes("pepino") ||
     norm.includes("zanahoria") ||
     norm.includes("lechuga") ||
+    norm.includes("aguacate") ||
+    norm.includes("ñame") ||
+    norm.includes("name") ||
+    norm.includes("ajo") ||
     catNorm.includes("legumbre") ||
     catNorm.includes("verdura")
   ) {
@@ -237,9 +302,30 @@ export const getProductConfig = (productName: string, categoryName = "") => {
     };
   }
 
-  // 6. Carnes de Res -> Beef
+  // 6. Pescados y Mariscos -> Fish
   if (
-    norm.includes("res") ||
+    norm.includes("pescado") ||
+    norm.includes("cachama") ||
+    norm.includes("mojarra") ||
+    norm.includes("bagre") ||
+    norm.includes("bocachico") ||
+    norm.includes("marisco") ||
+    catNorm.includes("pescado") ||
+    catNorm.includes("marisco")
+  ) {
+    return {
+      label: "Pescados y Mariscos",
+      shortLabel: "Pescado",
+      icon: Fish,
+      badgeBg: "bg-cyan-50 text-cyan-900 border-cyan-300",
+      textColor: "text-cyan-700",
+      accentBg: "bg-cyan-100",
+    };
+  }
+
+  // 7. Carnes de Res -> Beef
+  if (
+    /\bres\b/i.test(norm) ||
     norm.includes("carne") ||
     norm.includes("lomo") ||
     norm.includes("churrasco") ||
@@ -248,7 +334,11 @@ export const getProductConfig = (productName: string, categoryName = "") => {
     norm.includes("costilla de res") ||
     norm.includes("osobuco") ||
     norm.includes("hueso") ||
-    catNorm.includes("res")
+    norm.includes("mondongo") ||
+    norm.includes("lengua") ||
+    norm.includes("pellejo") ||
+    norm.includes("bovino") ||
+    (/\bres\b/i.test(catNorm) && !catNorm.includes("legumbre"))
   ) {
     return {
       label: "Carnes de Res",
@@ -260,11 +350,11 @@ export const getProductConfig = (productName: string, categoryName = "") => {
     };
   }
 
-  // 7. General / Abarrotes -> Boxes
+  // 8. General / Abarrotes -> Package / Boxes
   return {
     label: categoryName || "Abarrotes",
     shortLabel: "Abarrotes",
-    icon: Boxes,
+    icon: Package,
     badgeBg: "bg-slate-100 text-slate-800 border-slate-200",
     textColor: "text-slate-600",
     accentBg: "bg-slate-200",
@@ -297,6 +387,27 @@ export function PosView({
 
   // Estado para Selectores Rápidos Inteligentes
   const [quickSelectorsMap, setQuickSelectorsMap] = useState<Record<string, QuickSelectorItem[]>>({});
+
+  // Referencia y estado de scroll para carrusel de categorías en PC y móvil
+  const categoryScrollRef = React.useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkCategoryScroll = () => {
+    if (categoryScrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = categoryScrollRef.current;
+      setCanScrollLeft(scrollLeft > 4);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4);
+    }
+  };
+
+  const handleScrollCategories = (direction: "left" | "right") => {
+    if (categoryScrollRef.current) {
+      const scrollAmount = direction === "left" ? -260 : 260;
+      categoryScrollRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
+      setTimeout(checkCategoryScroll, 300);
+    }
+  };
 
   // Estado para el Modal de Venta Rápida por Monto en Dinero ($)
   const [moneyModalOpen, setMoneyModalOpen] = useState(false);
@@ -524,6 +635,18 @@ export function PosView({
     loadProducts();
     loadQuickSelectors();
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      checkCategoryScroll();
+    }, 200);
+    const handleResize = () => checkCategoryScroll();
+    window.addEventListener("resize", handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [products]);
 
   const handleQuickAdd = (product: Product, selector: QuickSelectorItem, e?: React.MouseEvent) => {
     if (e) {
@@ -822,29 +945,56 @@ export function PosView({
     }
   };
 
+  // Orden prioritario comercial para la carnicería y despensa
+  const categoryOrder = [
+    "Carnes de Res",
+    "Cortes de Cerdo",
+    "Pollos y Aves",
+    "Pescados y Mariscos",
+    "Legumbres y Verduras",
+    "Abarrotes y Despensa",
+  ];
+
   // Filtrado de productos por búsqueda y categoría
   const filteredProducts = products.filter((p) => {
+    const prodCategory = p.category?.name || "";
     const matchesSearch =
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.category.name.toLowerCase().includes(searchTerm.toLowerCase());
+      prodCategory.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory =
-      selectedCategory === "ALL" || p.category.name === selectedCategory;
+      selectedCategory === "ALL" || prodCategory === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  // Categorías únicas disponibles en el catálogo
+  // Categorías únicas disponibles en el catálogo, ordenadas por flujo comercial
   const availableCategories = Array.from(
-    new Set(products.map((p) => p.category.name))
-  );
+    new Set(products.map((p) => p.category?.name).filter(Boolean) as string[])
+  ).sort((a, b) => {
+    const idxA = categoryOrder.indexOf(a);
+    const idxB = categoryOrder.indexOf(b);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.localeCompare(b);
+  });
 
-  // Agrupación en secciones
+  // Agrupación en secciones con orden coherente
   const categorySections = Array.from(
-    new Set(filteredProducts.map((p) => p.category.name))
-  ).map((categoryName) => ({
-    categoryName,
-    config: getCategoryConfig(categoryName),
-    products: filteredProducts.filter((p) => p.category.name === categoryName),
-  }));
+    new Set(filteredProducts.map((p) => p.category?.name).filter(Boolean) as string[])
+  )
+    .sort((a, b) => {
+      const idxA = categoryOrder.indexOf(a);
+      const idxB = categoryOrder.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    })
+    .map((categoryName) => ({
+      categoryName,
+      config: getCategoryConfig(categoryName),
+      products: filteredProducts.filter((p) => (p.category?.name || "") === categoryName),
+    }));
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
@@ -905,43 +1055,77 @@ export function PosView({
             mobilePosTab === "cart" ? "hidden lg:block" : "block"
           }`}
         >
-          {/* Pestañas / Filtros Rápidos de Categoría */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            <button
-              type="button"
-              onClick={() => setSelectedCategory("ALL")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                selectedCategory === "ALL"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-              }`}
+          {/* Pestañas / Filtros Rápidos de Categoría con Carrusel y Desplazamiento PC */}
+          <div className="relative flex items-center group/cats">
+            {canScrollLeft && (
+              <button
+                type="button"
+                onClick={() => handleScrollCategories("left")}
+                className="absolute -left-2 z-10 w-7 h-7 rounded-full bg-white/95 border border-slate-300 shadow-md flex items-center justify-center text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer transition-all shrink-0"
+                title="Deslizar categorías a la izquierda"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
+
+            <div
+              ref={categoryScrollRef}
+              onScroll={checkCategoryScroll}
+              onWheel={(e) => {
+                if (e.deltaY !== 0 && categoryScrollRef.current) {
+                  categoryScrollRef.current.scrollLeft += e.deltaY;
+                  checkCategoryScroll();
+                }
+              }}
+              className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400 select-none scroll-smooth w-full px-0.5"
             >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Todos ({products.length})</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCategory("ALL")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  selectedCategory === "ALL"
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Todos ({products.length})</span>
+              </button>
 
-            {availableCategories.map((catName) => {
-              const config = getCategoryConfig(catName);
-              const Icon = config.icon;
-              const isSelected = selectedCategory === catName;
-              const count = products.filter((p) => p.category.name === catName).length;
+              {availableCategories.map((catName) => {
+                const config = getCategoryConfig(catName);
+                const Icon = config.icon;
+                const isSelected = selectedCategory === catName;
+                const count = products.filter((p) => (p.category?.name || "") === catName).length;
 
-              return (
-                <button
-                  key={catName}
-                  type="button"
-                  onClick={() => setSelectedCategory(catName)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                    isSelected
-                      ? "bg-slate-900 text-white shadow-xs"
-                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                  }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : config.textColor}`} />
-                  <span>{config.shortLabel} ({count})</span>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={catName}
+                    type="button"
+                    onClick={() => setSelectedCategory(catName)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      isSelected
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : config.textColor}`} />
+                    <span>{config.shortLabel} ({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {canScrollRight && (
+              <button
+                type="button"
+                onClick={() => handleScrollCategories("right")}
+                className="absolute -right-2 z-10 w-7 h-7 rounded-full bg-white/95 border border-slate-300 shadow-md flex items-center justify-center text-slate-700 hover:bg-slate-100 hover:text-slate-900 cursor-pointer transition-all shrink-0"
+                title="Deslizar categorías a la derecha"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {/* Buscador Rápido */}
