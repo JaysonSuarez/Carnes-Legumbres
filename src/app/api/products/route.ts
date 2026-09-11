@@ -51,7 +51,14 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({ success: true, data: enriched });
+    return NextResponse.json(
+      { success: true, data: enriched },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=10, stale-while-revalidate=30",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error fetching products:", error);
     return NextResponse.json(

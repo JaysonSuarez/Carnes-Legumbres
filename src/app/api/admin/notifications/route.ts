@@ -13,7 +13,7 @@ export async function GET(request: Request) {
       .select("*")
       .eq("tenantId", tenantId)
       .order("createdAt", { ascending: false })
-      .limit(50);
+      .limit(20);
 
     if (error) {
       throw error;
@@ -21,11 +21,18 @@ export async function GET(request: Request) {
 
     const unreadCount = (notifications || []).filter((n: any) => !n.readByAdmin).length;
 
-    return NextResponse.json({
-      success: true,
-      data: notifications || [],
-      unreadCount,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        data: notifications || [],
+        unreadCount,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=10, stale-while-revalidate=20",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("Error fetching admin notifications:", error);
     return NextResponse.json(

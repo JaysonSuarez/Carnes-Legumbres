@@ -25,7 +25,14 @@ export async function GET(request: Request) {
       },
     }));
 
-    return NextResponse.json({ success: true, data: formatted });
+    return NextResponse.json(
+      { success: true, data: formatted },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error fetching categories:", error);
     return NextResponse.json(

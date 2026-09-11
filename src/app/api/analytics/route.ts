@@ -336,6 +336,10 @@ export async function GET(request: Request) {
         productsBelowTarget,
         frequencyBenchmarks,
       },
+    }, {
+      headers: {
+        "Cache-Control": "private, max-age=15, stale-while-revalidate=30",
+      },
     });
   } catch (error) {
     console.error("Error en API analytics:", error);

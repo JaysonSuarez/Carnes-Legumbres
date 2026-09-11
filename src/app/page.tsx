@@ -55,8 +55,10 @@ export default function Home() {
   };
 
   useEffect(() => {
-    checkAlerts();
-  }, [activeTab]);
+    if (authChecked && session?.role === "admin") {
+      checkAlerts();
+    }
+  }, [authChecked, session]);
 
   if (!authChecked) {
     return (

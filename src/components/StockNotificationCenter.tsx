@@ -139,6 +139,9 @@ export function StockNotificationCenter({
 
   // Cargar notificaciones de seguridad para el Administrador (Andrés)
   const fetchAdminNotifications = async () => {
+    const session = getSession();
+    if (!session || session.role !== "admin") return;
+
     try {
       const res = await fetch("/api/admin/notifications");
       const data = await res.json();
@@ -177,25 +180,21 @@ export function StockNotificationCenter({
   };
 
   useEffect(() => {
-    const runFetch = () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
-        return; // No hacer peticiones si la pestaña está en segundo plano o minimizada
-      }
-      fetchStockAlerts();
-      const session = getSession();
-      if (session && session.role === "admin") {
+    // Carga inicial al montar el componente
+    fetchStockAlerts();
+    fetchAdminNotifications();
+
+    // Polling ligero EXCLUSIVO para notificaciones de seguridad de admin cada 50s
+    // (NUNCA recarga el catálogo completo de productos en segundo plano)
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
         fetchAdminNotifications();
       }
-    };
-
-    runFetch();
-
-    // Actualizar cada 35 segundos sólo mientras la ventana esté activa y visible
-    const interval = setInterval(runFetch, 35000);
+    }, 50000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        runFetch();
+        fetchAdminNotifications();
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
