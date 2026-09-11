@@ -18,7 +18,7 @@ const invoiceProducts: InvoiceProduct[] = [
   // Factura 1: Distrilácteos Pipe (Remisión No. 36895645)
   {
     name: "Kipe Colanta 50g",
-    code: "7702129040266",
+    code: "",
     unit: "unidad",
     costPrice: 1225,
     sellPrice: 1750,
@@ -31,7 +31,7 @@ const invoiceProducts: InvoiceProduct[] = [
   },
   {
     name: "Gelatina Surtida x 4 uds",
-    code: "7702129061179",
+    code: "",
     unit: "paquete",
     costPrice: 5074,
     sellPrice: 7250,
@@ -44,7 +44,7 @@ const invoiceProducts: InvoiceProduct[] = [
   },
   {
     name: "Néctar Manzana 300ml",
-    code: "770212908608N0",
+    code: "",
     unit: "unidad",
     costPrice: 2599,
     sellPrice: 3750,
@@ -58,13 +58,13 @@ const invoiceProducts: InvoiceProduct[] = [
 
   // Factura 2: Plásticos y Desechables AAA (Factura FE 172034)
   {
-    name: "Bolsas 50K Paca (Bolsa Blanca)",
-    code: "8955",
-    unit: "paca",
-    costPrice: 85000,
-    sellPrice: 121500,
-    currentStock: 1,
-    minStock: 1,
+    name: "Bolsa 50 Kg (Blanca)",
+    code: "",
+    unit: "unidad",
+    costPrice: 2125, // $85.000 / 40 bolsas
+    sellPrice: 3000, // 30% margen
+    currentStock: 40,
+    minStock: 5,
     categoryId: "cmtq8g9ig0003vao8qlo1jgxj",
     estimatedWastePercent: 0,
     targetMarginPercent: 30,
@@ -74,7 +74,7 @@ const invoiceProducts: InvoiceProduct[] = [
   // Factura 3: Frito Lay (Factura UBER69721)
   {
     name: "Margarita Pollo 36g",
-    code: "56564",
+    code: "",
     unit: "unidad",
     costPrice: 1983,
     sellPrice: 2850,
@@ -87,7 +87,7 @@ const invoiceProducts: InvoiceProduct[] = [
   },
   {
     name: "Margarita Limón 36g",
-    code: "56642",
+    code: "",
     unit: "unidad",
     costPrice: 1983,
     sellPrice: 2850,
@@ -100,7 +100,7 @@ const invoiceProducts: InvoiceProduct[] = [
   },
   {
     name: "Cheetos Boli Queso 34g",
-    code: "57168",
+    code: "",
     unit: "unidad",
     costPrice: 1552,
     sellPrice: 2250,
@@ -113,7 +113,7 @@ const invoiceProducts: InvoiceProduct[] = [
   },
   {
     name: "DeTodito Mix 50g",
-    code: "57318",
+    code: "",
     unit: "unidad",
     costPrice: 2413,
     sellPrice: 3450,
@@ -126,7 +126,7 @@ const invoiceProducts: InvoiceProduct[] = [
   },
   {
     name: "DeTodito Natural 50g",
-    code: "57322",
+    code: "",
     unit: "unidad",
     costPrice: 2413,
     sellPrice: 3450,
@@ -139,7 +139,7 @@ const invoiceProducts: InvoiceProduct[] = [
   },
   {
     name: "DeTodito Limón 50g",
-    code: "57323",
+    code: "",
     unit: "unidad",
     costPrice: 2413,
     sellPrice: 3450,
@@ -152,7 +152,7 @@ const invoiceProducts: InvoiceProduct[] = [
   },
   {
     name: "Maní Moto Limón 42g",
-    code: "61014",
+    code: "",
     unit: "unidad",
     costPrice: 1393,
     sellPrice: 2000,
@@ -165,7 +165,7 @@ const invoiceProducts: InvoiceProduct[] = [
   },
   {
     name: "Cheese Tris 48g",
-    code: "66181",
+    code: "",
     unit: "unidad",
     costPrice: 1552,
     sellPrice: 2250,
