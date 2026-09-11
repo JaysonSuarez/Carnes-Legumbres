@@ -556,12 +556,22 @@ export function InventoryView({
 
                 {/* Métricas en Móvil: Adaptadas para mostrador o administrador */}
                 {isCashierView ? (
-                  <div className="grid grid-cols-2 gap-2 py-2 px-2.5 bg-slate-50/80 rounded-lg border border-slate-100 text-xs">
+                  <div className="grid grid-cols-3 gap-2 py-2 px-2.5 bg-slate-50/80 rounded-lg border border-slate-100 text-xs">
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-semibold block">
-                        Precio Venta
+                        P. Compra
                       </span>
-                      <strong className="text-slate-900 font-mono text-sm block">
+                      <strong className="text-slate-700 font-mono text-xs block">
+                        {formatCurrency(product.costPrice)}
+                      </strong>
+                      <span className="text-[10px] text-slate-400">/{product.unit}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                        P. Venta
+                      </span>
+                      <strong className="text-slate-900 font-mono text-xs block">
                         {formatCurrency(product.sellPrice)}
                       </strong>
                       <span className="text-[10px] text-slate-400">/{product.unit}</span>
@@ -684,11 +694,12 @@ export function InventoryView({
             <TableHeader>
               {isCashierView ? (
                 <TableRow>
-                  <TableHead className="w-[280px]">Producto</TableHead>
+                  <TableHead className="w-[260px]">Producto</TableHead>
                   <TableHead>Categoría</TableHead>
+                  <TableHead className="text-right">Precio Compra</TableHead>
                   <TableHead className="text-right">Precio Venta</TableHead>
                   <TableHead className="text-right">Stock Actual</TableHead>
-                  <TableHead className="text-center w-[160px]">Acciones</TableHead>
+                  <TableHead className="text-center w-[140px]">Acciones</TableHead>
                 </TableRow>
               ) : (
                 <TableRow>
@@ -716,7 +727,7 @@ export function InventoryView({
                 ))
               ) : filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isCashierView ? 5 : 8} className="py-8 text-center text-xs text-slate-400">
+                  <TableCell colSpan={isCashierView ? 6 : 8} className="py-8 text-center text-xs text-slate-400">
                     No se encontraron productos con los criterios de búsqueda.
                   </TableCell>
                 </TableRow>
@@ -755,7 +766,12 @@ export function InventoryView({
                         {product.category.name}
                       </TableCell>
 
-                      {!isCashierView && (
+                      {isCashierView ? (
+                        <TableCell className="text-right text-slate-700 font-mono font-medium">
+                          {formatCurrency(product.costPrice)}
+                          <span className="text-[10px] text-slate-400 font-normal block">/{product.unit}</span>
+                        </TableCell>
+                      ) : (
                         <>
                           <TableCell className="text-right text-slate-600">
                             {formatCurrency(product.costPrice)}
@@ -1026,11 +1042,11 @@ export function InventoryView({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {isCashierView ? "Ajustar Precio y Stock" : "Editar Producto"}
+              {isCashierView ? "Ajustar Precios y Stock" : "Editar Producto"}
             </DialogTitle>
             <DialogDescription>
               {isCashierView
-                ? `Actualiza el precio de venta o las existencias físicas de ${editingProduct?.name}.`
+                ? `Actualiza el precio de compra, precio de venta o existencias físicas de ${editingProduct?.name}.`
                 : `Actualiza el costo, precio de venta o existencias de ${editingProduct?.name}.`}
             </DialogDescription>
           </DialogHeader>
@@ -1051,19 +1067,36 @@ export function InventoryView({
                     </span>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Precio de Venta ($)
-                    </label>
-                    <CurrencyInput
-                      prefix="$"
-                      placeholder="0"
-                      value={editingProduct.sellPrice}
-                      onChange={(val) =>
-                        setEditingProduct({ ...editingProduct, sellPrice: val })
-                      }
-                      className="font-bold text-slate-900 text-base"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Precio Compra ($)
+                      </label>
+                      <CurrencyInput
+                        prefix="$"
+                        placeholder="0"
+                        value={editingProduct.costPrice}
+                        onChange={(val) =>
+                          setEditingProduct({ ...editingProduct, costPrice: val })
+                        }
+                        className="font-bold text-slate-900 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Precio Venta ($)
+                      </label>
+                      <CurrencyInput
+                        prefix="$"
+                        placeholder="0"
+                        value={editingProduct.sellPrice}
+                        onChange={(val) =>
+                          setEditingProduct({ ...editingProduct, sellPrice: val })
+                        }
+                        className="font-bold text-slate-900 text-sm"
+                      />
+                    </div>
                   </div>
 
                   <div>

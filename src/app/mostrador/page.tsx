@@ -13,11 +13,13 @@ import {
   User,
   WalletCards,
   Package,
+  ReceiptText,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PosView } from "@/components/PosView";
 import { CreditsView } from "@/components/CreditsView";
 import { InventoryView } from "@/components/InventoryView";
+import { ExpensesView } from "@/components/ExpensesView";
 import { OfflineSyncIndicator } from "@/components/OfflineSyncIndicator";
 import { LoginForm } from "@/components/LoginForm";
 import { getSession, logout, AuthSession, hasRoleAccess } from "@/lib/auth";
@@ -27,7 +29,7 @@ export default function MostradorPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>("");
-  const [activeView, setActiveView] = useState<"pos" | "credits" | "inventory">("pos");
+  const [activeView, setActiveView] = useState<"pos" | "credits" | "inventory" | "expenses">("pos");
 
   useEffect(() => {
     const s = getSession();
@@ -199,6 +201,20 @@ export default function MostradorPage() {
                 <WalletCards className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Fiados</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveView("expenses")}
+                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  activeView === "expenses"
+                    ? "bg-rose-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Gastos Operativos"
+              >
+                <ReceiptText className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Gastos</span>
+              </button>
             </div>
 
             {/* Enlace al panel principal solo si la sesión activa es de Administrador */}
@@ -233,6 +249,7 @@ export default function MostradorPage() {
         {activeView === "pos" && <PosView showHeader={false} />}
         {activeView === "inventory" && <InventoryView isCashierView={true} />}
         {activeView === "credits" && <CreditsView />}
+        {activeView === "expenses" && <ExpensesView />}
       </main>
 
       {/* Footer Minimalista del Mostrador */}

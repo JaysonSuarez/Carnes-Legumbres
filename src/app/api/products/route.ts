@@ -171,7 +171,7 @@ export async function PUT(request: Request) {
     // Consultar estado previo para detectar cambios de precio o stock
     const { data: oldProduct } = await supabase
       .from("cl_products")
-      .select("name, sellPrice, currentStock, unit")
+      .select("name, sellPrice, costPrice, currentStock, unit")
       .eq("id", id)
       .eq("tenantId", tenantId)
       .single();
@@ -194,6 +194,11 @@ export async function PUT(request: Request) {
       data.sellPrice !== undefined &&
       Number(data.sellPrice) !== Number(oldProduct.sellPrice);
 
+    const isCostPriceChanged =
+      oldProduct &&
+      data.costPrice !== undefined &&
+      Number(data.costPrice) !== Number(oldProduct.costPrice);
+
     const isStockChanged =
       oldProduct &&
       data.currentStock !== undefined &&
@@ -205,7 +210,7 @@ export async function PUT(request: Request) {
       body.source === "mostrador" ||
       request.headers.get("x-user-role") === "cashier";
 
-    if (isFromCashier && (isPriceChanged || isStockChanged)) {
+    if (isFromCashier && (isPriceChanged || isStockChanged || isCostPriceChanged)) {
       const notifId = genId("notif");
       const formatCop = (val: number) =>
         new Intl.NumberFormat("es-CO", {
@@ -215,27 +220,36 @@ export async function PUT(request: Request) {
         }).format(val);
 
       let notifType = "PRICE_CHANGE";
-      let notifTitle = "⚠️ Cambio de Precio desde Mostrador";
+      let notifTitle = "⚠️ Modificación desde Mostrador";
       let notifMessage = "";
 
-      if (isPriceChanged && isStockChanged) {
-        notifType = "PRICE_CHANGE";
-        notifTitle = "⚠️ Cambio de Precio y Stock en Mostrador";
-        notifMessage = `El mostrador modificó "${oldProduct.name}": Precio de ${formatCop(
-          oldProduct.sellPrice
-        )} a ${formatCop(Number(data.sellPrice))} y Stock de ${oldProduct.currentStock} a ${
-          data.currentStock
-        } ${oldProduct.unit}.`;
-      } else if (isPriceChanged) {
+      const changes: string[] = [];
+      if (isCostPriceChanged) {
+        changes.push(`Costo Compra: ${formatCop(oldProduct.costPrice)} ➔ ${formatCop(Number(data.costPrice))}`);
+      }
+      if (isPriceChanged) {
+        changes.push(`Precio Venta: ${formatCop(oldProduct.sellPrice)} ➔ ${formatCop(Number(data.sellPrice))}`);
+      }
+      if (isStockChanged) {
+        changes.push(`Stock: ${oldProduct.currentStock} ➔ ${data.currentStock} ${oldProduct.unit}`);
+      }
+
+      if (isCostPriceChanged && !isPriceChanged && !isStockChanged) {
+        notifType = "COST_CHANGE";
+        notifTitle = "⚠️ Cambio de Costo/Compra desde Mostrador";
+        notifMessage = `El mostrador modificó el precio de compra de "${oldProduct.name}": de ${formatCop(oldProduct.costPrice)} a ${formatCop(Number(data.costPrice))}/${oldProduct.unit}.`;
+      } else if (isPriceChanged && !isCostPriceChanged && !isStockChanged) {
         notifType = "PRICE_CHANGE";
         notifTitle = "⚠️ Cambio de Precio desde Mostrador";
-        notifMessage = `El mostrador modificó el precio de "${oldProduct.name}" de ${formatCop(
-          oldProduct.sellPrice
-        )} a ${formatCop(Number(data.sellPrice))}/${oldProduct.unit}.`;
-      } else {
+        notifMessage = `El mostrador modificó el precio de venta de "${oldProduct.name}": de ${formatCop(oldProduct.sellPrice)} a ${formatCop(Number(data.sellPrice))}/${oldProduct.unit}.`;
+      } else if (isStockChanged && !isPriceChanged && !isCostPriceChanged) {
         notifType = "STOCK_CHANGE";
         notifTitle = "📦 Ajuste de Inventario desde Mostrador";
-        notifMessage = `El mostrador ajustó el stock de "${oldProduct.name}" de ${oldProduct.currentStock} a ${data.currentStock} ${oldProduct.unit}.`;
+        notifMessage = `El mostrador ajustó el stock de "${oldProduct.name}": de ${oldProduct.currentStock} a ${data.currentStock} ${oldProduct.unit}.`;
+      } else {
+        notifType = "MULTI_CHANGE";
+        notifTitle = "⚠️ Modificaciones de Inventario/Precios en Mostrador";
+        notifMessage = `El mostrador modificó "${oldProduct.name}": ${changes.join(" • ")}.`;
       }
 
       await supabase.from("cl_notifications").insert({
