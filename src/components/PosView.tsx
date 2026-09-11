@@ -20,6 +20,8 @@ import {
   LayoutGrid,
   Plus,
   Minus,
+  Scale,
+  Coins,
 } from "lucide-react";
 import {
   Card,
@@ -33,6 +35,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CleanNumberInput } from "@/components/ui/clean-number-input";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InvoiceDialog, SaleInvoiceData } from "@/components/InvoiceDialog";
 import { dispatchStockToast } from "@/components/StockNotificationCenter";
@@ -285,6 +296,103 @@ export function PosView({
   // Estado para Selectores Rápidos Inteligentes
   const [quickSelectorsMap, setQuickSelectorsMap] = useState<Record<string, QuickSelectorItem[]>>({});
 
+  // Estado para el Modal de Venta Rápida por Monto en Dinero ($)
+  const [moneyModalOpen, setMoneyModalOpen] = useState(false);
+  const [moneyProduct, setMoneyProduct] = useState<Product | null>(null);
+  const [moneyAmount, setMoneyAmount] = useState<number>(0);
+  const [moneyCartIndex, setMoneyCartIndex] = useState<number | undefined>(undefined);
+
+  const handleOpenMoneyModal = (product: Product, initialAmount = 0, cartIndex?: number) => {
+    setMoneyProduct(product);
+    setMoneyAmount(initialAmount > 0 ? initialAmount : 0);
+    setMoneyCartIndex(cartIndex);
+    setMoneyModalOpen(true);
+  };
+
+  const handleConfirmMoneySale = (product: Product, amount: number, cartIndex?: number) => {
+    if (amount <= 0 || product.sellPrice <= 0) return;
+    const calculatedQty = Number((amount / product.sellPrice).toFixed(3));
+    if (calculatedQty <= 0) return;
+
+    if (cartIndex !== undefined && cart[cartIndex]) {
+      // Modificar ítem existente en el ticket
+      const updated = [...cart];
+      const item = updated[cartIndex];
+      const costSubtotal = Number((calculatedQty * item.product.costPrice).toFixed(2));
+      const profit = amount - costSubtotal;
+      const realMarginPercent = calculateRealMargin(item.product.costPrice, item.unitPrice);
+
+      updated[cartIndex] = {
+        ...item,
+        quantity: calculatedQty,
+        subtotal: amount,
+        costSubtotal,
+        profit,
+        realMarginPercent,
+      };
+      setCart(updated);
+    } else {
+      // Agregar al ticket
+      if (product.currentStock <= 0) {
+        dispatchStockToast({
+          title: `Aviso: ${product.name} en 0`,
+          message: `Estás registrando un producto con 0 existencias físicas en el sistema.`,
+          type: "destructive",
+          isCritical: true,
+        });
+      }
+
+      const existingIndex = cart.findIndex((i) => i.product.id === product.id);
+      if (existingIndex > -1) {
+        const updated = [...cart];
+        const item = updated[existingIndex];
+        const newQty = Number((item.quantity + calculatedQty).toFixed(3));
+        const newSubtotal = item.subtotal + amount;
+        const costSubtotal = Number((newQty * item.product.costPrice).toFixed(2));
+        const profit = newSubtotal - costSubtotal;
+        const realMarginPercent = calculateRealMargin(item.product.costPrice, item.unitPrice);
+
+        updated[existingIndex] = {
+          ...item,
+          quantity: newQty,
+          subtotal: newSubtotal,
+          costSubtotal,
+          profit,
+          realMarginPercent,
+        };
+        setCart(updated);
+      } else {
+        const costSubtotal = Number((calculatedQty * product.costPrice).toFixed(2));
+        const profit = amount - costSubtotal;
+        const realMarginPercent = calculateRealMargin(product.costPrice, product.sellPrice);
+
+        setCart([
+          ...cart,
+          {
+            product,
+            quantity: calculatedQty,
+            unitPrice: product.sellPrice,
+            subtotal: amount,
+            costSubtotal,
+            profit,
+            realMarginPercent,
+          },
+        ]);
+      }
+    }
+
+    setMoneyModalOpen(false);
+    setMoneyProduct(null);
+    setMoneyAmount(0);
+    setMoneyCartIndex(undefined);
+
+    dispatchStockToast({
+      title: "✓ Agregado por Dinero ($)",
+      message: `${formatCurrency(amount)} de ${product.name} = ${calculatedQty} ${product.unit} (descontará ${calculatedQty} ${product.unit} del inventario).`,
+      type: "info",
+    });
+  };
+
   const loadQuickSelectors = () => {
     try {
       const cached = localStorage.getItem("carne_legumbre_quick_selectors");
@@ -521,6 +629,7 @@ export function PosView({
         productId: i.product.id,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
+        subtotal: i.subtotal,
       })),
     };
 
@@ -890,17 +999,31 @@ export function PosView({
                                 </span>
                                 <span className="text-[10px] text-slate-400 font-medium">/{p.unit}</span>
                               </div>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAddToCart(p);
-                                }}
-                                className="w-6 h-6 rounded-md bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
-                                title="Agregar al carrito"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenMoneyModal(p);
+                                  }}
+                                  className="px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-300 text-[11px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-0.5 active:scale-95"
+                                  title={`Vender por monto en $ (ej: $6.000, $10.000 de ${p.name})`}
+                                >
+                                  <span className="font-mono font-black text-xs">$</span>
+                                  <span>Monto</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAddToCart(p);
+                                  }}
+                                  className="w-7 h-7 rounded-md bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center text-slate-600 transition-colors cursor-pointer shadow-2xs active:scale-95"
+                                  title="Agregar 1 unidad o 1 kg"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -1114,9 +1237,20 @@ export function PosView({
                           </span>
                         </div>
 
-                        <div className="text-right min-w-[70px] shrink-0">
-                          <span className="font-bold text-slate-900 font-mono">
-                            {formatCurrency(item.subtotal)}
+                        <div className="text-right min-w-[75px] shrink-0 flex flex-col items-end">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenMoneyModal(item.product, item.subtotal, idx)}
+                            className="font-bold text-slate-900 font-mono hover:text-emerald-700 hover:bg-emerald-50 px-1 py-0.5 rounded cursor-pointer transition-colors text-right flex items-center gap-1 group/amt active:scale-95"
+                            title="Clic para modificar por precio en dinero ($)"
+                          >
+                            <span>{formatCurrency(item.subtotal)}</span>
+                            <span className="text-[9px] font-sans font-semibold text-emerald-700 opacity-70 group-hover/amt:opacity-100 bg-emerald-100 px-1 py-0.2 rounded border border-emerald-200">
+                              $
+                            </span>
+                          </button>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {item.quantity} {item.product.unit}
                           </span>
                         </div>
 
@@ -1198,6 +1332,173 @@ export function PosView({
         open={showInvoiceModal}
         onOpenChange={setShowInvoiceModal}
       />
+
+      {/* Modal de Venta Rápida por Monto en Dinero ($) */}
+      <Dialog
+        open={moneyModalOpen}
+        onOpenChange={(open) => {
+          setMoneyModalOpen(open);
+          if (!open) {
+            setMoneyProduct(null);
+            setMoneyAmount(0);
+            setMoneyCartIndex(undefined);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md p-5 sm:p-6 bg-white max-h-[90vh] overflow-y-auto">
+          {moneyProduct && (
+            <div className="space-y-4">
+              <DialogHeader className="space-y-1 text-left">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800 shrink-0">
+                    <Scale className="w-5 h-5 text-emerald-700" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-base font-black text-slate-900">
+                      {moneyCartIndex !== undefined ? "Modificar por Monto ($)" : "Venta por Monto en Dinero ($)"}
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500">
+                      Ingresa el valor pedido por el cliente para calcular el peso exacto.
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              {/* Información del Producto */}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+                <div>
+                  <div className="font-black text-sm text-slate-900">{moneyProduct.name}</div>
+                  <div className="text-xs text-slate-500 font-mono mt-0.5">
+                    Precio: <span className="font-bold text-slate-800">{formatCurrency(moneyProduct.sellPrice)}</span> / {moneyProduct.unit}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[11px] font-bold text-slate-500 block">Stock Actual</span>
+                  <span
+                    className={`text-xs font-mono font-bold ${
+                      moneyProduct.currentStock <= 0 ? "text-rose-600" : "text-emerald-700"
+                    }`}
+                  >
+                    {moneyProduct.currentStock.toFixed(2)} {moneyProduct.unit}
+                  </span>
+                </div>
+              </div>
+
+              {/* Campo para ingresar el dinero */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>¿Cuánto dinero pidió el cliente?</span>
+                  <span className="text-[11px] text-emerald-700 font-semibold font-mono">En pesos (COP)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-lg pointer-events-none">
+                    $
+                  </span>
+                  <CurrencyInput
+                    value={moneyAmount}
+                    onChange={(val) => setMoneyAmount(val)}
+                    placeholder="Ej: 6000 o 10000"
+                    autoFocus
+                    className="pl-8 h-12 text-xl font-mono font-black text-slate-900 border-2 border-slate-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && moneyAmount > 0 && moneyProduct.sellPrice > 0) {
+                        e.preventDefault();
+                        handleConfirmMoneySale(moneyProduct, moneyAmount, moneyCartIndex);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Presets de montos habituales */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Montos habituales:
+                </span>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
+                  {[2000, 3000, 4000, 5000, 6000, 8000, 10000, 12000, 15000, 20000, 30000, 50000].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setMoneyAmount(preset)}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-bold font-mono transition-all border cursor-pointer active:scale-95 text-center ${
+                        moneyAmount === preset
+                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                          : "bg-white hover:bg-slate-100 text-slate-700 border-slate-200"
+                      }`}
+                    >
+                      ${preset >= 1000 ? `${preset / 1000}k` : preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Panel de Cálculo de Peso y Descuento de Stock en Tiempo Real */}
+              {moneyAmount > 0 && moneyProduct.sellPrice > 0 && (() => {
+                const calcQty = Number((moneyAmount / moneyProduct.sellPrice).toFixed(3));
+                const grams = Math.round(calcQty * 1000);
+                const resultingStock = Number((moneyProduct.currentStock - calcQty).toFixed(3));
+
+                return (
+                  <div className="p-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                        <Scale className="w-4 h-4 text-emerald-700" />
+                        Peso / Cantidad Calculada:
+                      </span>
+                      <span className="text-base sm:text-lg font-black font-mono text-emerald-800 bg-white px-2.5 py-0.5 rounded-lg border border-emerald-300 shadow-2xs">
+                        {calcQty.toFixed(3)} {moneyProduct.unit}
+                      </span>
+                    </div>
+
+                    {moneyProduct.unit === "kg" && (
+                      <div className="text-[11px] text-emerald-900 font-medium flex justify-between">
+                        <span>Equivalente en balanza:</span>
+                        <span className="font-bold font-mono">{grams.toLocaleString()} gramos</span>
+                      </div>
+                    )}
+
+                    <div className="pt-1.5 border-t border-emerald-200/70 flex items-center justify-between text-[11px] text-emerald-900">
+                      <span className="text-slate-600">
+                        {formatCurrency(moneyAmount)} ÷ {formatCurrency(moneyProduct.sellPrice)}/{moneyProduct.unit}
+                      </span>
+                      <span className="font-medium text-emerald-800">
+                        Descontará <strong className="font-mono font-black">{calcQty.toFixed(3)} {moneyProduct.unit}</strong> del stock
+                      </span>
+                    </div>
+
+                    {resultingStock < 0 && (
+                      <div className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-1 rounded border border-rose-200">
+                        ⚠️ Aviso: El stock resultante será negativo ({resultingStock} {moneyProduct.unit}).
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <DialogFooter className="pt-2 flex flex-row gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setMoneyModalOpen(false)}
+                  className="flex-1 text-xs font-semibold"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  disabled={moneyAmount <= 0 || moneyProduct.sellPrice <= 0}
+                  onClick={() => handleConfirmMoneySale(moneyProduct, moneyAmount, moneyCartIndex)}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 shadow-xs cursor-pointer"
+                >
+                  <Check className="w-4 h-4 mr-1" />
+                  {moneyCartIndex !== undefined ? "Actualizar Ítem" : "Agregar al Ticket"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

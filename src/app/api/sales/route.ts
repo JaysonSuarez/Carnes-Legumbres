@@ -94,8 +94,11 @@ export async function POST(request: Request) {
       const unitPrice = Number(item.unitPrice || product.sellPrice);
       const unitCost = Number(product.costPrice);
 
-      const subtotal = quantity * unitPrice;
-      const costSubtotal = quantity * unitCost;
+      const subtotal =
+        item.subtotal !== undefined && item.subtotal !== null && Number(item.subtotal) > 0
+          ? Math.round(Number(item.subtotal))
+          : Math.round(quantity * unitPrice);
+      const costSubtotal = Number((quantity * unitCost).toFixed(2));
       const profit = subtotal - costSubtotal;
       const realMarginPercent = calculateRealMargin(unitCost, unitPrice);
 
