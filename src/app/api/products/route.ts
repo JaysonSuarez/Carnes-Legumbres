@@ -122,10 +122,10 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, data: product });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating product:", error);
     return NextResponse.json(
-      { success: false, error: "Error al crear el producto" },
+      { success: false, error: error?.message || error?.details || "Error al crear el producto" },
       { status: 500 }
     );
   }
@@ -174,10 +174,10 @@ export async function PUT(request: Request) {
     }
 
     return NextResponse.json({ success: true, data: updated });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating product:", error);
     return NextResponse.json(
-      { success: false, error: "Error al actualizar el producto" },
+      { success: false, error: error?.message || error?.details || "Error al actualizar el producto" },
       { status: 500 }
     );
   }
@@ -208,12 +208,12 @@ export async function DELETE(request: Request) {
     }
 
     return NextResponse.json({ success: true, message: "Producto eliminado correctamente" });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error deleting product:", error);
     return NextResponse.json(
       {
         success: false,
-        error: "Error al eliminar el producto",
+        error: error?.message || error?.details || "Error al eliminar el producto",
       },
       { status: 500 }
     );

@@ -57,6 +57,21 @@ interface Category {
   name: string;
 }
 
+function formatErrorMessage(err: any, fallback: string): string {
+  if (!err) return fallback;
+  if (typeof err === "string") return err;
+  if (typeof err.error === "string") return err.error;
+  if (typeof err.error?.message === "string") return err.error.message;
+  if (typeof err.message === "string") return err.message;
+  if (typeof err.details === "string") return err.details;
+  try {
+    const serialized = JSON.stringify(err.error || err);
+    return serialized !== "{}" ? serialized : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function InventoryView() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -195,11 +210,11 @@ export function InventoryView() {
         });
         fetchData();
       } else {
-        alert(data.error || "Error al crear el producto");
+        alert(formatErrorMessage(data, "Error al crear el producto"));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error creando producto:", err);
-      alert("Error de conexión al crear el producto");
+      alert(formatErrorMessage(err, "Error de conexión al crear el producto"));
     } finally {
       setCreateLoading(false);
     }
@@ -220,11 +235,11 @@ export function InventoryView() {
         setProductToDelete(null);
         fetchData();
       } else {
-        alert(data.error || "No se pudo eliminar el producto");
+        alert(formatErrorMessage(data, "No se pudo eliminar el producto"));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error al eliminar producto:", err);
-      alert("Error de conexión al eliminar el producto");
+      alert(formatErrorMessage(err, "Error de conexión al eliminar el producto"));
     } finally {
       setDeleting(false);
     }
@@ -252,11 +267,11 @@ export function InventoryView() {
         fetchData();
       } else {
         const err = await res.json();
-        alert(err.error || "Error al actualizar el producto");
+        alert(formatErrorMessage(err, "Error al actualizar el producto"));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Error de conexión al actualizar el producto");
+      alert(formatErrorMessage(err, "Error de conexión al actualizar el producto"));
     }
   };
 
