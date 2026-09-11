@@ -128,6 +128,45 @@ export async function POST(request: Request) {
       throw error;
     }
 
+    // Notificación de seguridad: si fue creado desde mostrador, alertar al admin Andrés
+    const isFromCashier =
+      body.createdByRole === "cashier" ||
+      body.createdByUser === "mostrador" ||
+      body.source === "mostrador" ||
+      request.headers.get("x-user-role") === "cashier";
+
+    if (isFromCashier) {
+      const notifId = genId("notif");
+      const formatCop = (val: number) =>
+        new Intl.NumberFormat("es-CO", {
+          style: "currency",
+          currency: "COP",
+          maximumFractionDigits: 0,
+        }).format(val);
+
+      await supabase.from("cl_notifications").insert({
+        id: notifId,
+        tenantId,
+        type: "PRODUCT_CREATED",
+        title: "✨ Nuevo Producto Ingresado desde Mostrador",
+        message: `El mostrador ingresó "${product.name}" (${product.category?.name || "Catálogo"}). Compra: ${formatCop(product.costPrice)} | Venta: ${formatCop(product.sellPrice)} | Stock: ${product.currentStock} ${product.unit}.`,
+        metadata: {
+          productId: id,
+          productName: product.name,
+          categoryName: product.category?.name,
+          costPrice: product.costPrice,
+          sellPrice: product.sellPrice,
+          stock: product.currentStock,
+          unit: product.unit,
+          changedBy: body.createdByUser || "mostrador",
+          role: body.createdByRole || "cashier",
+          source: body.source || "mostrador",
+        },
+        readByAdmin: false,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     return NextResponse.json({ success: true, data: product });
   } catch (error: any) {
     console.error("Error creating product:", error);

@@ -188,14 +188,26 @@ export function InventoryView({
         catNameNorm.includes("cerdo") ||
         Boolean(formData.isMeatCut);
 
+      const session = getSession();
       const res = await fetch("/api/products", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-role": session?.role || (isCashierView ? "cashier" : "admin"),
+        },
         body: JSON.stringify({
           ...formData,
           name: formData.name.trim(),
           categoryId: catId,
           isMeatCut: isMeat,
+          costPrice: Number(formData.costPrice || 0),
+          sellPrice: Number(formData.sellPrice || 0),
+          estimatedWastePercent: Number(formData.estimatedWastePercent ?? 0),
+          currentStock: Number(formData.currentStock || 0),
+          minStock: Number(formData.minStock || 5),
+          createdByUser: session?.username || (isCashierView ? "mostrador" : "admin"),
+          createdByRole: session?.role || (isCashierView ? "cashier" : "admin"),
+          source: isCashierView ? "mostrador" : "admin",
         }),
       });
       const data = await res.json();
@@ -334,9 +346,9 @@ export function InventoryView({
             </p>
           </div>
 
-          {!isCashierView && (
-            <div className="flex flex-wrap items-center gap-2">
-              {totalStockCount > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {!isCashierView && (
+              totalStockCount > 0 ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -360,23 +372,27 @@ export function InventoryView({
                   <Sparkles className="w-3.5 h-3.5 mr-1 text-emerald-600" />
                   <span>{demoActionLoading ? "Cargando..." : "Llenar Stock Demo"}</span>
                 </Button>
-              )}
+              )
+            )}
 
-              <Button
-                onClick={() => {
-                  if (categories.length > 0 && !formData.categoryId) {
-                    setFormData((prev) => ({ ...prev, categoryId: categories[0].id }));
-                  }
-                  setShowAddModal(true);
-                }}
-                size="sm"
-                className="self-start sm:self-auto text-xs"
-              >
-                <Plus className="w-3.5 h-3.5 mr-1" />
-                Ingresar Nuevo Producto
-              </Button>
-            </div>
-          )}
+            <Button
+              onClick={() => {
+                if (categories.length > 0 && !formData.categoryId) {
+                  setFormData((prev) => ({ ...prev, categoryId: categories[0].id }));
+                }
+                setShowAddModal(true);
+              }}
+              size="sm"
+              className={`self-start sm:self-auto text-xs font-bold cursor-pointer transition-all ${
+                isCashierView
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                  : ""
+              }`}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              Ingresar Nuevo Producto
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -880,9 +896,13 @@ export function InventoryView({
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Ingresar Nuevo Producto</DialogTitle>
+            <DialogTitle>
+              {isCashierView ? "Ingresar Nuevo Producto al Inventario" : "Ingresar Nuevo Producto"}
+            </DialogTitle>
             <DialogDescription>
-              Agrega un producto al catálogo con su costo base y merma estimada.
+              {isCashierView
+                ? "Registra rápidamente un producto nuevo recibido en mostrador con su precio de compra, venta y existencias."
+                : "Agrega un producto al catálogo con su costo base y merma estimada."}
             </DialogDescription>
           </DialogHeader>
 
@@ -930,14 +950,16 @@ export function InventoryView({
                   <option value="kg">Kilogramo (kg)</option>
                   <option value="unidad">Unidad / Pieza</option>
                   <option value="lb">Libra (lb)</option>
+                  <option value="bolsa">Bolsa / Paquete</option>
+                  <option value="atado">Atado</option>
                 </select>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid ${isCashierView ? "grid-cols-2" : "grid-cols-2"} gap-3`}>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Costo Base ($)
+                  {isCashierView ? "Precio Compra ($)" : "Costo Base ($)"}
                 </label>
                 <CurrencyInput
                   prefix="$"
@@ -947,27 +969,40 @@ export function InventoryView({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Merma Estimada (%)
-                </label>
-                <CleanNumberInput
-                  suffix="%"
-                  placeholder="0"
-                  value={formData.estimatedWastePercent}
-                  onChange={(val) =>
-                    setFormData({ ...formData, estimatedWastePercent: val })
-                  }
-                />
-              </div>
+              {!isCashierView ? (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Merma Estimada (%)
+                  </label>
+                  <CleanNumberInput
+                    suffix="%"
+                    placeholder="0"
+                    value={formData.estimatedWastePercent}
+                    onChange={(val) =>
+                      setFormData({ ...formData, estimatedWastePercent: val })
+                    }
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Existencias Iniciales ({formData.unit})
+                  </label>
+                  <CleanNumberInput
+                    placeholder="0"
+                    value={formData.currentStock}
+                    onChange={(val) => setFormData({ ...formData, currentStock: val })}
+                  />
+                </div>
+              )}
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="text-xs font-medium text-slate-600">
-                  Precio de Venta ($) (0 = calcula 30% real)
+                  {isCashierView ? "Precio de Venta ($) *" : "Precio de Venta ($) (0 = calcula 30% real)"}
                 </label>
-                {formData.costPrice > 0 && (
+                {!isCashierView && formData.costPrice > 0 && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1003,27 +1038,42 @@ export function InventoryView({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Stock Inicial
-                </label>
-                <CleanNumberInput
-                  placeholder="0"
-                  value={formData.currentStock}
-                  onChange={(val) => setFormData({ ...formData, currentStock: val })}
-                />
-              </div>
+              {!isCashierView ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Stock Inicial
+                    </label>
+                    <CleanNumberInput
+                      placeholder="0"
+                      value={formData.currentStock}
+                      onChange={(val) => setFormData({ ...formData, currentStock: val })}
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Stock Mínimo (Alerta)
-                </label>
-                <CleanNumberInput
-                  placeholder="0"
-                  value={formData.minStock}
-                  onChange={(val) => setFormData({ ...formData, minStock: val })}
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Stock Mínimo (Alerta)
+                    </label>
+                    <CleanNumberInput
+                      placeholder="0"
+                      value={formData.minStock}
+                      onChange={(val) => setFormData({ ...formData, minStock: val })}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Stock Mínimo (Umbral para aviso de agotamiento)
+                  </label>
+                  <CleanNumberInput
+                    placeholder="5"
+                    value={formData.minStock}
+                    onChange={(val) => setFormData({ ...formData, minStock: val })}
+                  />
+                </div>
+              )}
             </div>
 
             <DialogFooter className="pt-3">
