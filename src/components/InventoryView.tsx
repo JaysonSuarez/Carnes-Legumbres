@@ -238,14 +238,25 @@ export function InventoryView() {
       const res = await fetch("/api/products", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingProduct),
+        body: JSON.stringify({
+          ...editingProduct,
+          costPrice: Number(editingProduct.costPrice || 0),
+          sellPrice: Number(editingProduct.sellPrice || 0),
+          estimatedWastePercent: Number(editingProduct.estimatedWastePercent ?? 0),
+          currentStock: Number(editingProduct.currentStock || 0),
+          minStock: Number(editingProduct.minStock || 0),
+        }),
       });
       if (res.ok) {
         setEditingProduct(null);
         fetchData();
+      } else {
+        const err = await res.json();
+        alert(err.error || "Error al actualizar el producto");
       }
     } catch (err) {
       console.error(err);
+      alert("Error de conexión al actualizar el producto");
     }
   };
 
@@ -944,17 +955,61 @@ export function InventoryView() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Precio Venta ($)</label>
-                  <CurrencyInput
-                    prefix="$"
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Merma Estimada (%)
+                  </label>
+                  <CleanNumberInput
+                    suffix="%"
                     placeholder="0"
-                    value={editingProduct.sellPrice}
+                    value={editingProduct.estimatedWastePercent ?? 0}
                     onChange={(val) =>
-                      setEditingProduct({ ...editingProduct, sellPrice: val })
+                      setEditingProduct({
+                        ...editingProduct,
+                        estimatedWastePercent: val,
+                      })
                     }
-                    className="font-bold text-slate-900"
                   />
                 </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-medium text-slate-600">Precio Venta ($)</label>
+                  {editingProduct.costPrice > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sug = calculatePriceForTargetMargin(
+                          editingProduct.costPrice,
+                          30,
+                          editingProduct.estimatedWastePercent || 0
+                        );
+                        setEditingProduct((prev) => (prev ? { ...prev, sellPrice: sug } : null));
+                      }}
+                      className="text-[10px] text-emerald-700 font-semibold hover:underline cursor-pointer flex items-center gap-0.5"
+                      title="Fijar automáticamente precio de venta para 30% de margen real considerando la merma"
+                    >
+                      <Sparkles className="w-3 h-3 text-emerald-600" />
+                      Sugerido 30%:{" "}
+                      {formatCurrency(
+                        calculatePriceForTargetMargin(
+                          editingProduct.costPrice,
+                          30,
+                          editingProduct.estimatedWastePercent || 0
+                        )
+                      )}
+                    </button>
+                  )}
+                </div>
+                <CurrencyInput
+                  prefix="$"
+                  placeholder="0"
+                  value={editingProduct.sellPrice}
+                  onChange={(val) =>
+                    setEditingProduct({ ...editingProduct, sellPrice: val })
+                  }
+                  className="font-bold text-slate-900"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
