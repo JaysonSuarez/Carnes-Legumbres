@@ -184,13 +184,12 @@ export function StockNotificationCenter({
     fetchStockAlerts();
     fetchAdminNotifications();
 
-    // Polling ligero EXCLUSIVO para notificaciones de seguridad de admin cada 50s
-    // (NUNCA recarga el catálogo completo de productos en segundo plano)
+    // Polling ligero EXCLUSIVO para notificaciones de seguridad de admin cada 45s
+    // Corre en segundo plano para que Andrés reciba el aviso nativo incluso si tiene otra pestaña o app abierta
+    // (Consulta solo cl_notifications, pesa < 1KB y nunca sobrecarga el servidor)
     const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        fetchAdminNotifications();
-      }
-    }, 50000);
+      fetchAdminNotifications();
+    }, 45000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {

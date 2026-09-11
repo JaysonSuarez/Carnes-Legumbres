@@ -92,11 +92,11 @@ export async function requestBrowserNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * Emitir notificación de escritorio nativa del navegador
+ * Emitir notificación nativa del navegador o sistema (compatible con Service Worker en Android/PC en segundo plano)
  */
-export function sendBrowserNotification(
+export async function sendBrowserNotification(
   title: string,
-  options?: { body?: string; tag?: string }
+  options?: { body?: string; tag?: string; data?: any }
 ) {
   if (typeof window === "undefined" || !("Notification" in window)) {
     return;
@@ -104,9 +104,27 @@ export function sendBrowserNotification(
 
   try {
     if (Notification.permission === "granted") {
+      // 1. Intentar a través del Service Worker (requerido para móviles Android y funcionamiento en segundo plano)
+      if ("serviceWorker" in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          if (reg && "showNotification" in reg) {
+            await reg.showNotification(title, {
+              icon: "/icons/icon.svg",
+              badge: "/icons/icon.svg",
+              ...options,
+            });
+            return;
+          }
+        } catch (swError) {
+          // Continuar al fallback clásico
+        }
+      }
+
+      // 2. Fallback estándar para navegadores de escritorio
       new Notification(title, {
-        icon: "/favicon.ico",
-        badge: "/favicon.ico",
+        icon: "/icons/icon.svg",
+        badge: "/icons/icon.svg",
         ...options,
       });
     }
