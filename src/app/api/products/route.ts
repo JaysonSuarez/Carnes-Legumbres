@@ -161,6 +161,14 @@ export async function PUT(request: Request) {
     if (data.minStock !== undefined) updateData.minStock = Number(data.minStock);
     if (data.isMeatCut !== undefined) updateData.isMeatCut = Boolean(data.isMeatCut);
 
+    // Consultar estado previo para detectar cambios de precio o stock
+    const { data: oldProduct } = await supabase
+      .from("cl_products")
+      .select("name, sellPrice, currentStock, unit")
+      .eq("id", id)
+      .eq("tenantId", tenantId)
+      .single();
+
     const { data: updated, error } = await supabase
       .from("cl_products")
       .update(updateData)
@@ -171,6 +179,78 @@ export async function PUT(request: Request) {
 
     if (error) {
       throw error;
+    }
+
+    // Medida de seguridad: Si el cambio fue realizado desde mostrador o por el cajero, notificar al admin
+    const isPriceChanged =
+      oldProduct &&
+      data.sellPrice !== undefined &&
+      Number(data.sellPrice) !== Number(oldProduct.sellPrice);
+
+    const isStockChanged =
+      oldProduct &&
+      data.currentStock !== undefined &&
+      Number(data.currentStock) !== Number(oldProduct.currentStock);
+
+    const isFromCashier =
+      body.updatedByRole === "cashier" ||
+      body.updatedByUser === "mostrador" ||
+      body.source === "mostrador" ||
+      request.headers.get("x-user-role") === "cashier";
+
+    if (isFromCashier && (isPriceChanged || isStockChanged)) {
+      const notifId = genId("notif");
+      const formatCop = (val: number) =>
+        new Intl.NumberFormat("es-CO", {
+          style: "currency",
+          currency: "COP",
+          maximumFractionDigits: 0,
+        }).format(val);
+
+      let notifType = "PRICE_CHANGE";
+      let notifTitle = "⚠️ Cambio de Precio desde Mostrador";
+      let notifMessage = "";
+
+      if (isPriceChanged && isStockChanged) {
+        notifType = "PRICE_CHANGE";
+        notifTitle = "⚠️ Cambio de Precio y Stock en Mostrador";
+        notifMessage = `El mostrador modificó "${oldProduct.name}": Precio de ${formatCop(
+          oldProduct.sellPrice
+        )} a ${formatCop(Number(data.sellPrice))} y Stock de ${oldProduct.currentStock} a ${
+          data.currentStock
+        } ${oldProduct.unit}.`;
+      } else if (isPriceChanged) {
+        notifType = "PRICE_CHANGE";
+        notifTitle = "⚠️ Cambio de Precio desde Mostrador";
+        notifMessage = `El mostrador modificó el precio de "${oldProduct.name}" de ${formatCop(
+          oldProduct.sellPrice
+        )} a ${formatCop(Number(data.sellPrice))}/${oldProduct.unit}.`;
+      } else {
+        notifType = "STOCK_CHANGE";
+        notifTitle = "📦 Ajuste de Inventario desde Mostrador";
+        notifMessage = `El mostrador ajustó el stock de "${oldProduct.name}" de ${oldProduct.currentStock} a ${data.currentStock} ${oldProduct.unit}.`;
+      }
+
+      await supabase.from("cl_notifications").insert({
+        id: notifId,
+        tenantId,
+        type: notifType,
+        title: notifTitle,
+        message: notifMessage,
+        metadata: {
+          productId: id,
+          productName: oldProduct.name,
+          oldPrice: oldProduct.sellPrice,
+          newPrice: Number(data.sellPrice),
+          oldStock: oldProduct.currentStock,
+          newStock: Number(data.currentStock),
+          changedBy: body.updatedByUser || "mostrador",
+          role: body.updatedByRole || "cashier",
+          source: body.source || "mostrador",
+        },
+        readByAdmin: false,
+        createdAt: new Date().toISOString(),
+      });
     }
 
     return NextResponse.json({ success: true, data: updated });

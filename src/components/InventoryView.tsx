@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { CleanNumberInput } from "@/components/ui/clean-number-input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getSession } from "@/lib/auth";
 
 interface Product {
   id: string;
@@ -72,7 +73,11 @@ function formatErrorMessage(err: any, fallback: string): string {
   }
 }
 
-export function InventoryView() {
+export function InventoryView({
+  isCashierView = false,
+}: {
+  isCashierView?: boolean;
+} = {}) {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -250,9 +255,13 @@ export function InventoryView() {
     if (!editingProduct) return;
 
     try {
+      const session = getSession();
       const res = await fetch("/api/products", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-role": session?.role || (isCashierView ? "cashier" : "admin"),
+        },
         body: JSON.stringify({
           ...editingProduct,
           costPrice: Number(editingProduct.costPrice || 0),
@@ -260,6 +269,9 @@ export function InventoryView() {
           estimatedWastePercent: Number(editingProduct.estimatedWastePercent ?? 0),
           currentStock: Number(editingProduct.currentStock || 0),
           minStock: Number(editingProduct.minStock || 0),
+          updatedByUser: session?.username || (isCashierView ? "mostrador" : "admin"),
+          updatedByRole: session?.role || (isCashierView ? "cashier" : "admin"),
+          source: isCashierView ? "mostrador" : "admin",
         }),
       });
       if (res.ok) {
@@ -312,54 +324,58 @@ export function InventoryView() {
         <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
-              Catálogo de Productos e Inventario
+              {isCashierView ? "Control de Inventario y Precios" : "Catálogo de Productos e Inventario"}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Control de existencias físicas, costo unitario y margen real de cada producto.
+              {isCashierView
+                ? "Consulta rápida de productos, existencias físicas y ajuste de precios de venta en mostrador."
+                : "Control de existencias físicas, costo unitario y margen real de cada producto."}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {totalStockCount > 0 ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={demoActionLoading}
-                onClick={() => handleStockDemoAction("empty")}
-                className="text-xs text-rose-700 border-rose-200 hover:bg-rose-50 hover:text-rose-800"
-                title="Establecer todas las existencias físicas en 0"
-              >
-                <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                <span>{demoActionLoading ? "Vaciando..." : "Vaciar Inventario a 0"}</span>
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={demoActionLoading}
-                onClick={() => handleStockDemoAction("fill")}
-                className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-                title="Cargar existencias de demostración para pruebas"
-              >
-                <Sparkles className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                <span>{demoActionLoading ? "Cargando..." : "Llenar Stock Demo"}</span>
-              </Button>
-            )}
+          {!isCashierView && (
+            <div className="flex flex-wrap items-center gap-2">
+              {totalStockCount > 0 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={demoActionLoading}
+                  onClick={() => handleStockDemoAction("empty")}
+                  className="text-xs text-rose-700 border-rose-200 hover:bg-rose-50 hover:text-rose-800"
+                  title="Establecer todas las existencias físicas en 0"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                  <span>{demoActionLoading ? "Vaciando..." : "Vaciar Inventario a 0"}</span>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={demoActionLoading}
+                  onClick={() => handleStockDemoAction("fill")}
+                  className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                  title="Cargar existencias de demostración para pruebas"
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                  <span>{demoActionLoading ? "Cargando..." : "Llenar Stock Demo"}</span>
+                </Button>
+              )}
 
-            <Button
-              onClick={() => {
-                if (categories.length > 0 && !formData.categoryId) {
-                  setFormData((prev) => ({ ...prev, categoryId: categories[0].id }));
-                }
-                setShowAddModal(true);
-              }}
-              size="sm"
-              className="self-start sm:self-auto text-xs"
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              Ingresar Nuevo Producto
-            </Button>
-          </div>
+              <Button
+                onClick={() => {
+                  if (categories.length > 0 && !formData.categoryId) {
+                    setFormData((prev) => ({ ...prev, categoryId: categories[0].id }));
+                  }
+                  setShowAddModal(true);
+                }}
+                size="sm"
+                className="self-start sm:self-auto text-xs"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Ingresar Nuevo Producto
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -538,78 +554,122 @@ export function InventoryView() {
                   </div>
                 </div>
 
-                {/* Métricas Financieras en 3 Columnas */}
-                <div className="grid grid-cols-3 gap-2 py-2 px-2.5 bg-slate-50/80 rounded-lg border border-slate-100 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">
-                      Venta
-                    </span>
-                    <strong className="text-slate-900 font-mono text-sm block">
-                      {formatCurrency(product.sellPrice)}
-                    </strong>
-                    <span className="text-[10px] text-slate-400">/{product.unit}</span>
-                  </div>
+                {/* Métricas en Móvil: Adaptadas para mostrador o administrador */}
+                {isCashierView ? (
+                  <div className="grid grid-cols-2 gap-2 py-2 px-2.5 bg-slate-50/80 rounded-lg border border-slate-100 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                        Precio Venta
+                      </span>
+                      <strong className="text-slate-900 font-mono text-sm block">
+                        {formatCurrency(product.sellPrice)}
+                      </strong>
+                      <span className="text-[10px] text-slate-400">/{product.unit}</span>
+                    </div>
 
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">
-                      Costo Base
-                    </span>
-                    <span className="text-slate-700 font-mono text-xs block">
-                      {formatCurrency(product.costPrice)}
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      Merma {product.estimatedWastePercent}%
-                    </span>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                        Existencias
+                      </span>
+                      <span className="text-slate-800 font-mono text-xs font-bold block">
+                        {product.unit === "kg"
+                          ? formatWeight(product.currentStock)
+                          : `${product.currentStock} ${product.unit}`}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {isOutOfStock ? "Agotado (0)" : isLow ? "Stock Bajo" : "Disponible"}
+                      </span>
+                    </div>
                   </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 py-2 px-2.5 bg-slate-50/80 rounded-lg border border-slate-100 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                        Venta
+                      </span>
+                      <strong className="text-slate-900 font-mono text-sm block">
+                        {formatCurrency(product.sellPrice)}
+                      </strong>
+                      <span className="text-[10px] text-slate-400">/{product.unit}</span>
+                    </div>
 
-                  <div className="text-right flex flex-col items-end justify-center">
-                    <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-0.5">
-                      Margen Real
-                    </span>
-                    <Badge
-                      variant={product.realMargin >= 30 ? "success" : "destructive"}
-                      className="text-[10px] font-bold"
-                    >
-                      {product.realMargin}%
-                    </Badge>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                        Costo Base
+                      </span>
+                      <span className="text-slate-700 font-mono text-xs block">
+                        {formatCurrency(product.costPrice)}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Merma {product.estimatedWastePercent}%
+                      </span>
+                    </div>
+
+                    <div className="text-right flex flex-col items-end justify-center">
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        Margen Real
+                      </span>
+                      <Badge
+                        variant={product.realMargin >= 30 ? "success" : "destructive"}
+                        className="text-[10px] font-bold"
+                      >
+                        {product.realMargin}%
+                      </Badge>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Acciones para el Pulgar (Botones de altura adecuada >= 36px) */}
+                {/* Acciones para el Pulgar */}
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setProductToDelete(product)}
-                    className="h-9 px-2.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-100 hover:border-rose-200 cursor-pointer"
-                    title="Eliminar producto"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-500" />
-                    Eliminar
-                  </Button>
+                  {!isCashierView ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setProductToDelete(product)}
+                        className="h-9 px-2.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-100 hover:border-rose-200 cursor-pointer"
+                        title="Eliminar producto"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                        Eliminar
+                      </Button>
 
-                  <div className="flex items-center gap-1.5">
-                    {product.isBelowTarget && (
+                      <div className="flex items-center gap-1.5">
+                        {product.isBelowTarget && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleApply30Percent(product)}
+                            className="h-9 px-2.5 text-xs font-bold text-amber-800 border-amber-300 bg-amber-50 hover:bg-amber-100 cursor-pointer"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-600" />
+                            Fijar 30% ({formatCurrency(product.suggestedPrice30)})
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingProduct(product)}
+                          className="h-9 px-3 text-xs font-semibold text-slate-700 hover:text-slate-950 border-slate-200 cursor-pointer"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 mr-1 text-slate-500" />
+                          Editar
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full flex justify-end">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleApply30Percent(product)}
-                        className="h-9 px-2.5 text-xs font-bold text-amber-800 border-amber-300 bg-amber-50 hover:bg-amber-100 cursor-pointer"
+                        onClick={() => setEditingProduct(product)}
+                        className="h-9 px-4 text-xs font-bold text-slate-900 hover:bg-slate-100 border-slate-300 cursor-pointer"
                       >
-                        <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-600" />
-                        Fijar 30% ({formatCurrency(product.suggestedPrice30)})
+                        <Edit2 className="w-3.5 h-3.5 mr-1.5 text-emerald-700" />
+                        Ajustar Precio & Stock
                       </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditingProduct(product)}
-                      className="h-9 px-3 text-xs font-semibold text-slate-700 hover:text-slate-950 border-slate-200 cursor-pointer"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 mr-1 text-slate-500" />
-                      Editar
-                    </Button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -617,21 +677,31 @@ export function InventoryView() {
         )}
       </div>
 
-      {/* Vista Desktop: Tabla Completa de 8 Columnas (>= md) */}
+      {/* Vista Desktop: Tabla Adaptativa (>= md) */}
       <Card className="hidden md:block shadow-xs overflow-hidden">
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-[220px]">Producto</TableHead>
-                <TableHead>Categoría</TableHead>
-                <TableHead className="text-right">Costo Base</TableHead>
-                <TableHead className="text-right">Merma (%)</TableHead>
-                <TableHead className="text-right">Precio Venta</TableHead>
-                <TableHead className="text-center">Margen Real</TableHead>
-                <TableHead className="text-right">Stock Actual</TableHead>
-                <TableHead className="text-center w-[120px]">Acciones</TableHead>
-              </TableRow>
+              {isCashierView ? (
+                <TableRow>
+                  <TableHead className="w-[280px]">Producto</TableHead>
+                  <TableHead>Categoría</TableHead>
+                  <TableHead className="text-right">Precio Venta</TableHead>
+                  <TableHead className="text-right">Stock Actual</TableHead>
+                  <TableHead className="text-center w-[160px]">Acciones</TableHead>
+                </TableRow>
+              ) : (
+                <TableRow>
+                  <TableHead className="w-[220px]">Producto</TableHead>
+                  <TableHead>Categoría</TableHead>
+                  <TableHead className="text-right">Costo Base</TableHead>
+                  <TableHead className="text-right">Merma (%)</TableHead>
+                  <TableHead className="text-right">Precio Venta</TableHead>
+                  <TableHead className="text-center">Margen Real</TableHead>
+                  <TableHead className="text-right">Stock Actual</TableHead>
+                  <TableHead className="text-center w-[120px]">Acciones</TableHead>
+                </TableRow>
+              )}
             </TableHeader>
             <TableBody>
               {loading ? (
@@ -640,16 +710,13 @@ export function InventoryView() {
                     <TableCell><Skeleton className="h-4 w-36" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-10 ml-auto" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-14 mx-auto" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
                     <TableCell><Skeleton className="h-6 w-16 mx-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-xs text-slate-400">
+                  <TableCell colSpan={isCashierView ? 5 : 8} className="py-8 text-center text-xs text-slate-400">
                     No se encontraron productos con los criterios de búsqueda.
                   </TableCell>
                 </TableRow>
@@ -688,26 +755,33 @@ export function InventoryView() {
                         {product.category.name}
                       </TableCell>
 
-                      <TableCell className="text-right text-slate-600">
-                        {formatCurrency(product.costPrice)}
-                      </TableCell>
+                      {!isCashierView && (
+                        <>
+                          <TableCell className="text-right text-slate-600">
+                            {formatCurrency(product.costPrice)}
+                          </TableCell>
 
-                      <TableCell className="text-right text-slate-400 text-xs">
-                        {product.estimatedWastePercent}%
-                      </TableCell>
+                          <TableCell className="text-right text-slate-400 text-xs">
+                            {product.estimatedWastePercent}%
+                          </TableCell>
+                        </>
+                      )}
 
                       <TableCell className="text-right font-bold text-slate-900">
                         {formatCurrency(product.sellPrice)}
+                        <span className="text-[10px] text-slate-400 font-normal block">/{product.unit}</span>
                       </TableCell>
 
-                      <TableCell className="text-center">
-                        <Badge
-                          variant={product.realMargin >= 30 ? "success" : "destructive"}
-                          className="text-[10px] font-bold"
-                        >
-                          {product.realMargin}%
-                        </Badge>
-                      </TableCell>
+                      {!isCashierView && (
+                        <TableCell className="text-center">
+                          <Badge
+                            variant={product.realMargin >= 30 ? "success" : "destructive"}
+                            className="text-[10px] font-bold"
+                          >
+                            {product.realMargin}%
+                          </Badge>
+                        </TableCell>
+                      )}
 
                       <TableCell className="text-right">
                         <span
@@ -735,34 +809,46 @@ export function InventoryView() {
                       </TableCell>
 
                       <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {product.isBelowTarget && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleApply30Percent(product)}
-                              title={`Ajustar precio a ${formatCurrency(product.suggestedPrice30)} para asegurar 30% real`}
-                              className="h-6 px-1.5 text-[10px] font-bold text-amber-800 border-amber-300 bg-amber-50 hover:bg-amber-100"
-                            >
-                              <Sparkles className="w-3 h-3 mr-0.5 text-amber-600" />
-                              Fijar 30%
-                            </Button>
-                          )}
-                          <button
+                        {isCashierView ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => setEditingProduct(product)}
-                            title="Editar producto"
-                            className="p-1 text-slate-400 hover:text-slate-900 cursor-pointer rounded hover:bg-slate-100 transition-colors"
+                            className="h-7 px-3 text-xs font-bold text-slate-900 hover:bg-slate-100 border-slate-300 cursor-pointer"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setProductToDelete(product)}
-                            title="Eliminar producto"
-                            className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer rounded hover:bg-rose-50 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                            <Edit2 className="w-3 h-3 mr-1 text-emerald-700" />
+                            Ajustar
+                          </Button>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1.5">
+                            {product.isBelowTarget && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleApply30Percent(product)}
+                                title={`Ajustar precio a ${formatCurrency(product.suggestedPrice30)} para asegurar 30% real`}
+                                className="h-6 px-1.5 text-[10px] font-bold text-amber-800 border-amber-300 bg-amber-50 hover:bg-amber-100"
+                              >
+                                <Sparkles className="w-3 h-3 mr-0.5 text-amber-600" />
+                                Fijar 30%
+                              </Button>
+                            )}
+                            <button
+                              onClick={() => setEditingProduct(product)}
+                              title="Editar producto"
+                              className="p-1 text-slate-400 hover:text-slate-900 cursor-pointer rounded hover:bg-slate-100 transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setProductToDelete(product)}
+                              title="Eliminar producto"
+                              className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer rounded hover:bg-rose-50 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -939,138 +1025,191 @@ export function InventoryView() {
       <Dialog open={Boolean(editingProduct)} onOpenChange={(open) => !open && setEditingProduct(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar Producto</DialogTitle>
+            <DialogTitle>
+              {isCashierView ? "Ajustar Precio y Stock" : "Editar Producto"}
+            </DialogTitle>
             <DialogDescription>
-              Actualiza el costo, precio de venta o existencias de {editingProduct?.name}.
+              {isCashierView
+                ? `Actualiza el precio de venta o las existencias físicas de ${editingProduct?.name}.`
+                : `Actualiza el costo, precio de venta o existencias de ${editingProduct?.name}.`}
             </DialogDescription>
           </DialogHeader>
 
           {editingProduct && (
             <form onSubmit={handleUpdateProduct} className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nombre</label>
-                <Input
-                  type="text"
-                  value={editingProduct.name}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                />
-              </div>
+              {isCashierView ? (
+                <>
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase block mb-0.5">
+                      Producto
+                    </span>
+                    <span className="text-sm font-bold text-slate-900 block">
+                      {editingProduct.name}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      Categoría: {editingProduct.category?.name} • Unidad: {editingProduct.unit}
+                    </span>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Costo Base ($)</label>
-                  <CurrencyInput
-                    prefix="$"
-                    placeholder="0"
-                    value={editingProduct.costPrice}
-                    onChange={(val) =>
-                      setEditingProduct({ ...editingProduct, costPrice: val })
-                    }
-                  />
-                </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Precio de Venta ($)
+                    </label>
+                    <CurrencyInput
+                      prefix="$"
+                      placeholder="0"
+                      value={editingProduct.sellPrice}
+                      onChange={(val) =>
+                        setEditingProduct({ ...editingProduct, sellPrice: val })
+                      }
+                      className="font-bold text-slate-900 text-base"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Merma Estimada (%)
-                  </label>
-                  <CleanNumberInput
-                    suffix="%"
-                    placeholder="0"
-                    value={editingProduct.estimatedWastePercent ?? 0}
-                    onChange={(val) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        estimatedWastePercent: val,
-                      })
-                    }
-                  />
-                </div>
-              </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Existencias / Stock Actual ({editingProduct.unit})
+                    </label>
+                    <CleanNumberInput
+                      placeholder="0"
+                      value={editingProduct.currentStock}
+                      onChange={(val) =>
+                        setEditingProduct({ ...editingProduct, currentStock: val })
+                      }
+                      className="font-bold text-slate-900 text-base"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Nombre</label>
+                    <Input
+                      type="text"
+                      value={editingProduct.name}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                    />
+                  </div>
 
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-xs font-medium text-slate-600">Precio Venta ($)</label>
-                  {editingProduct.costPrice > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const sug = calculatePriceForTargetMargin(
-                          editingProduct.costPrice,
-                          30,
-                          editingProduct.estimatedWastePercent || 0
-                        );
-                        setEditingProduct((prev) => (prev ? { ...prev, sellPrice: sug } : null));
-                      }}
-                      className="text-[10px] text-emerald-700 font-semibold hover:underline cursor-pointer flex items-center gap-0.5"
-                      title="Fijar automáticamente precio de venta para 30% de margen real considerando la merma"
-                    >
-                      <Sparkles className="w-3 h-3 text-emerald-600" />
-                      Sugerido 30%:{" "}
-                      {formatCurrency(
-                        calculatePriceForTargetMargin(
-                          editingProduct.costPrice,
-                          30,
-                          editingProduct.estimatedWastePercent || 0
-                        )
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Costo Base ($)</label>
+                      <CurrencyInput
+                        prefix="$"
+                        placeholder="0"
+                        value={editingProduct.costPrice}
+                        onChange={(val) =>
+                          setEditingProduct({ ...editingProduct, costPrice: val })
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Merma Estimada (%)
+                      </label>
+                      <CleanNumberInput
+                        suffix="%"
+                        placeholder="0"
+                        value={editingProduct.estimatedWastePercent ?? 0}
+                        onChange={(val) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            estimatedWastePercent: val,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs font-medium text-slate-600">Precio Venta ($)</label>
+                      {editingProduct.costPrice > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const sug = calculatePriceForTargetMargin(
+                              editingProduct.costPrice,
+                              30,
+                              editingProduct.estimatedWastePercent || 0
+                            );
+                            setEditingProduct((prev) => (prev ? { ...prev, sellPrice: sug } : null));
+                          }}
+                          className="text-[10px] text-emerald-700 font-semibold hover:underline cursor-pointer flex items-center gap-0.5"
+                          title="Fijar automáticamente precio de venta para 30% de margen real considerando la merma"
+                        >
+                          <Sparkles className="w-3 h-3 text-emerald-600" />
+                          Sugerido 30%:{" "}
+                          {formatCurrency(
+                            calculatePriceForTargetMargin(
+                              editingProduct.costPrice,
+                              30,
+                              editingProduct.estimatedWastePercent || 0
+                            )
+                          )}
+                        </button>
                       )}
-                    </button>
-                  )}
-                </div>
-                <CurrencyInput
-                  prefix="$"
-                  placeholder="0"
-                  value={editingProduct.sellPrice}
-                  onChange={(val) =>
-                    setEditingProduct({ ...editingProduct, sellPrice: val })
-                  }
-                  className="font-bold text-slate-900"
-                />
-              </div>
+                    </div>
+                    <CurrencyInput
+                      prefix="$"
+                      placeholder="0"
+                      value={editingProduct.sellPrice}
+                      onChange={(val) =>
+                        setEditingProduct({ ...editingProduct, sellPrice: val })
+                      }
+                      className="font-bold text-slate-900"
+                    />
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Stock Actual ({editingProduct.unit})
-                  </label>
-                  <CleanNumberInput
-                    placeholder="0"
-                    value={editingProduct.currentStock}
-                    onChange={(val) =>
-                      setEditingProduct({ ...editingProduct, currentStock: val })
-                    }
-                  />
-                </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Stock Actual ({editingProduct.unit})
+                      </label>
+                      <CleanNumberInput
+                        placeholder="0"
+                        value={editingProduct.currentStock}
+                        onChange={(val) =>
+                          setEditingProduct({ ...editingProduct, currentStock: val })
+                        }
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Stock Mínimo</label>
-                  <CleanNumberInput
-                    placeholder="0"
-                    value={editingProduct.minStock}
-                    onChange={(val) =>
-                      setEditingProduct({ ...editingProduct, minStock: val })
-                    }
-                  />
-                </div>
-              </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Stock Mínimo</label>
+                      <CleanNumberInput
+                        placeholder="0"
+                        value={editingProduct.minStock}
+                        onChange={(val) =>
+                          setEditingProduct({ ...editingProduct, minStock: val })
+                        }
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
 
               <DialogFooter className="pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setProductToDelete(editingProduct);
-                  }}
-                  className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-500" />
-                  Eliminar Producto
-                </Button>
-                <div className="flex items-center justify-end gap-2">
+                {!isCashierView && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setProductToDelete(editingProduct);
+                    }}
+                    className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                    Eliminar Producto
+                  </Button>
+                )}
+                <div className="flex items-center justify-end gap-2 ml-auto">
                   <Button type="button" variant="outline" size="sm" onClick={() => setEditingProduct(null)}>
                     Cancelar
                   </Button>
-                  <Button type="submit" size="sm">
+                  <Button type="submit" size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
                     Guardar Cambios
                   </Button>
                 </div>

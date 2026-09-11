@@ -22,6 +22,7 @@ import {
   Minus,
   Scale,
   Coins,
+  Edit2,
 } from "lucide-react";
 import {
   Card,
@@ -58,6 +59,7 @@ import {
   saveProductsCache,
   getCachedProducts,
 } from "@/lib/offline-sync";
+import { getSession } from "@/lib/auth";
 
 interface Product {
   id: string;
@@ -391,6 +393,87 @@ export function PosView({
       message: `${formatCurrency(amount)} de ${product.name} = ${calculatedQty} ${product.unit} (descontará ${calculatedQty} ${product.unit} del inventario).`,
       type: "info",
     });
+  };
+
+  // Estado para Edición Rápida de Precio y Stock desde Mostrador
+  const [quickEditProduct, setQuickEditProduct] = useState<Product | null>(null);
+  const [quickEditPrice, setQuickEditPrice] = useState<number>(0);
+  const [quickEditStock, setQuickEditStock] = useState<number>(0);
+  const [quickEditSaving, setQuickEditSaving] = useState(false);
+  const [quickEditSuccessMsg, setQuickEditSuccessMsg] = useState("");
+
+  const handleOpenQuickEdit = (product: Product) => {
+    setQuickEditProduct(product);
+    setQuickEditPrice(product.sellPrice);
+    setQuickEditStock(product.currentStock);
+    setQuickEditSuccessMsg("");
+  };
+
+  const handleSaveQuickEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickEditProduct) return;
+    setQuickEditSaving(true);
+    try {
+      const session = getSession();
+      const res = await fetch("/api/products", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-role": session?.role || "cashier",
+        },
+        body: JSON.stringify({
+          id: quickEditProduct.id,
+          sellPrice: Number(quickEditPrice || 0),
+          currentStock: Number(quickEditStock || 0),
+          updatedByUser: session?.username || "mostrador",
+          updatedByRole: session?.role || "cashier",
+          source: "mostrador",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const newSellPrice = Number(quickEditPrice || 0);
+        const newStock = Number(quickEditStock || 0);
+        setProducts((prev) =>
+          prev.map((p) =>
+            p.id === quickEditProduct.id
+              ? {
+                  ...p,
+                  sellPrice: newSellPrice,
+                  currentStock: newStock,
+                  isOutOfStock: newStock <= 0,
+                  isLowStock: newStock > 0 && newStock <= (p.minStock || 5),
+                }
+              : p
+          )
+        );
+
+        try {
+          const cached = getCachedProducts();
+          if (cached && Array.isArray(cached)) {
+            const updatedCached = cached.map((p: any) =>
+              p.id === quickEditProduct.id
+                ? { ...p, sellPrice: newSellPrice, currentStock: newStock }
+                : p
+            );
+            saveProductsCache(updatedCached);
+          }
+        } catch {}
+
+        setQuickEditSuccessMsg("✓ Precio y stock actualizados correctamente");
+        setTimeout(() => {
+          setQuickEditProduct(null);
+          setQuickEditSuccessMsg("");
+        }, 1000);
+      } else {
+        alert(data.error || "No se pudo actualizar el producto");
+      }
+    } catch (err: any) {
+      console.error("Error al actualizar producto:", err);
+      alert("Error de conexión al actualizar el producto");
+    } finally {
+      setQuickEditSaving(false);
+    }
   };
 
   const loadQuickSelectors = () => {
@@ -946,7 +1029,7 @@ export function PosView({
                                     {itemConfig.shortLabel}
                                   </span>
                                 </span>
-                                <div>
+                                <div className="flex items-center gap-1">
                                   {isOutOfStock ? (
                                     <span className="text-[10px] font-bold text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded border border-rose-300">
                                       Agotado
@@ -960,6 +1043,17 @@ export function PosView({
                                       {p.currentStock.toFixed(0)} {p.unit}
                                     </span>
                                   )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenQuickEdit(p);
+                                    }}
+                                    className="p-1 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                                    title="Ajustar precio o stock de este producto"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </button>
                                 </div>
                               </div>
                               <div className="text-xs font-bold text-slate-900 line-clamp-2 mt-1 group-hover:text-slate-950">
@@ -1496,6 +1590,88 @@ export function PosView({
                 </Button>
               </DialogFooter>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Rápido de Ajuste de Precio y Stock para Mostrador */}
+      <Dialog
+        open={Boolean(quickEditProduct)}
+        onOpenChange={(open) => !open && setQuickEditProduct(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-900">
+              <Package className="w-5 h-5 text-emerald-600" />
+              <span>Ajustar Precio & Stock en Mostrador</span>
+            </DialogTitle>
+            <DialogDescription>
+              {quickEditProduct?.name} ({quickEditProduct?.category?.name || "General"})
+            </DialogDescription>
+          </DialogHeader>
+
+          {quickEditProduct && (
+            <form onSubmit={handleSaveQuickEdit} className="space-y-4 py-1">
+              {quickEditSuccessMsg && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-emerald-600" />
+                  <span>{quickEditSuccessMsg}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Precio de Venta ($ por {quickEditProduct.unit})
+                </label>
+                <CurrencyInput
+                  prefix="$"
+                  placeholder="0"
+                  value={quickEditPrice}
+                  onChange={(val) => setQuickEditPrice(val)}
+                  className="font-mono font-bold text-base text-slate-950"
+                  required
+                />
+                <span className="text-[11px] text-slate-500 mt-0.5 block">
+                  Precio actual registrado: {formatCurrency(quickEditProduct.sellPrice)}/{quickEditProduct.unit}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Existencias Físicas / Stock ({quickEditProduct.unit})
+                </label>
+                <CleanNumberInput
+                  placeholder="0"
+                  value={quickEditStock}
+                  onChange={(val) => setQuickEditStock(val)}
+                  className="font-mono font-bold text-base text-slate-950"
+                  required
+                />
+                <span className="text-[11px] text-slate-500 mt-0.5 block">
+                  Stock actual en sistema: {quickEditProduct.currentStock} {quickEditProduct.unit}
+                </span>
+              </div>
+
+              <DialogFooter className="pt-2 flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setQuickEditProduct(null)}
+                  disabled={quickEditSaving}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={quickEditSaving}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer"
+                >
+                  {quickEditSaving ? "Guardando..." : "Guardar Cambios"}
+                </Button>
+              </DialogFooter>
+            </form>
           )}
         </DialogContent>
       </Dialog>

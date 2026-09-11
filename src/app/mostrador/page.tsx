@@ -12,10 +12,12 @@ import {
   LogOut,
   User,
   WalletCards,
+  Package,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PosView } from "@/components/PosView";
 import { CreditsView } from "@/components/CreditsView";
+import { InventoryView } from "@/components/InventoryView";
 import { OfflineSyncIndicator } from "@/components/OfflineSyncIndicator";
 import { LoginForm } from "@/components/LoginForm";
 import { getSession, logout, AuthSession, hasRoleAccess } from "@/lib/auth";
@@ -25,7 +27,7 @@ export default function MostradorPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>("");
-  const [activeView, setActiveView] = useState<"pos" | "credits">("pos");
+  const [activeView, setActiveView] = useState<"pos" | "credits" | "inventory">("pos");
 
   useEffect(() => {
     const s = getSession();
@@ -153,30 +155,51 @@ export default function MostradorPage() {
               )}
             </button>
 
-            {/* Botón Cartera & Fiados */}
-            <button
-              type="button"
-              onClick={() => setActiveView(activeView === "pos" ? "credits" : "pos")}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs ${
-                activeView === "credits"
-                  ? "bg-slate-900 text-white"
-                  : "bg-amber-500 hover:bg-amber-600 text-slate-950"
-              }`}
-              title={activeView === "pos" ? "Consultar fiados y registrar abonos" : "Volver a la caja de ventas"}
-            >
-              {activeView === "pos" ? (
-                <>
-                  <WalletCards className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Cartera / Fiados</span>
-                  <span className="sm:hidden">Fiados</span>
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="w-3.5 h-3.5" />
-                  <span>Volver a Caja</span>
-                </>
-              )}
-            </button>
+            {/* Navegación de Vistas en Mostrador */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveView("pos")}
+                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  activeView === "pos"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Caja y Ventas"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Caja</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveView("inventory")}
+                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  activeView === "inventory"
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Inventario y Precios"
+              >
+                <Package className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Inventario / Precios</span>
+                <span className="sm:hidden">Stock</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveView("credits")}
+                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  activeView === "credits"
+                    ? "bg-amber-500 text-slate-950 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="Cartera y Fiados"
+              >
+                <WalletCards className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Fiados</span>
+              </button>
+            </div>
 
             {/* Enlace al panel principal solo si la sesión activa es de Administrador */}
             {session.role === "admin" && (
@@ -207,11 +230,9 @@ export default function MostradorPage() {
 
       {/* Contenedor Principal del Mostrador */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 py-3 sm:px-6 sm:py-5 lg:p-6 pb-20 md:pb-6">
-        {activeView === "pos" ? (
-          <PosView showHeader={false} />
-        ) : (
-          <CreditsView />
-        )}
+        {activeView === "pos" && <PosView showHeader={false} />}
+        {activeView === "inventory" && <InventoryView isCashierView={true} />}
+        {activeView === "credits" && <CreditsView />}
       </main>
 
       {/* Footer Minimalista del Mostrador */}

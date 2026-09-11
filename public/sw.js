@@ -1,4 +1,4 @@
-﻿// Service Worker para Carne & Legumbre PWA
+// Service Worker para Carne & Legumbre PWA
 const CACHE_NAME = "carne-legumbre-v2";
 const STATIC_ASSETS = [
   "/",
@@ -79,7 +79,12 @@ self.addEventListener("fetch", (event) => {
   }
 
   // 3. Consultas GET de API (/api/products, /api/categories, /api/analytics): Red primero, fallback a caché
+  // (Excluir notificaciones de admin para evitar datos desactualizados)
   if (request.method === "GET" && url.pathname.startsWith("/api/")) {
+    if (url.pathname.startsWith("/api/admin/notifications")) {
+      return;
+    }
+
     event.respondWith(
       fetch(request)
         .then((networkResponse) => {
@@ -100,4 +105,44 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
+});
+
+// 4. Manejo de Notificaciones Push en segundo plano
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  try {
+    const data = event.data.json();
+    const title = data.title || "Carne & Legumbre";
+    const options = {
+      body: data.body || data.message || "",
+      icon: "/icons/icon.svg",
+      badge: "/icons/icon.svg",
+      data: data,
+    };
+    event.waitUntil(self.registration.showNotification(title, options));
+  } catch (e) {
+    const text = event.data.text();
+    event.waitUntil(
+      self.registration.showNotification("Carne & Legumbre", {
+        body: text,
+        icon: "/icons/icon.svg",
+      })
+    );
+  }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && "focus" in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow("/");
+      }
+    })
+  );
 });
