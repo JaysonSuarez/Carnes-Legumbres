@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   LogOut,
   WalletCards,
+  ReceiptText,
 } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +33,8 @@ export type ActiveTab =
   | "inventory"
   | "pos"
   | "waste"
-  | "credits";
+  | "credits"
+  | "expenses";
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -78,6 +80,11 @@ export function Navbar({
       id: "credits" as ActiveTab,
       label: "Cartera & Fiados",
       icon: WalletCards,
+    },
+    {
+      id: "expenses" as ActiveTab,
+      label: "Gastos Operativos",
+      icon: ReceiptText,
     },
     {
       id: "reports" as ActiveTab,
@@ -403,6 +410,44 @@ export function Navbar({
                       }`}
                     >
                       Cuentas por cobrar, tasa 1% diario y abonos
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 opacity-50" />
+              </button>
+
+              {/* Control de Gastos */}
+              <button
+                type="button"
+                onClick={() => handleSelectTab("expenses")}
+                className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                  activeTab === "expenses"
+                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                    : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      activeTab === "expenses"
+                        ? "bg-rose-600 text-white"
+                        : "bg-rose-100 text-rose-800"
+                    }`}
+                  >
+                    <ReceiptText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold">
+                      Control de Gastos Operativos
+                    </div>
+                    <div
+                      className={`text-[11px] ${
+                        activeTab === "expenses"
+                          ? "text-slate-300"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      Arriendo, servicios, nóminas e insumos
                     </div>
                   </div>
                 </div>

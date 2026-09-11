@@ -55,8 +55,8 @@ export async function GET(request: Request) {
 
     const tenantId = getTenantId(request);
 
-    // Consultar datos de ventas, compras, mermas y productos desde Supabase filtrados por tenantId
-    const [salesRes, batchesRes, wasteRes, productsRes] = await Promise.all([
+    // Consultar datos de ventas, compras, mermas, productos y gastos desde Supabase filtrados por tenantId
+    const [salesRes, batchesRes, wasteRes, productsRes, expensesRes] = await Promise.all([
       supabase
         .from("cl_sales")
         .select(`
@@ -94,12 +94,18 @@ export async function GET(request: Request) {
         .from("cl_products")
         .select("*, category:cl_categories(*)")
         .eq("tenantId", tenantId),
+      supabase
+        .from("cl_expenses")
+        .select("*")
+        .eq("tenantId", tenantId)
+        .order("expenseDate", { ascending: false }),
     ]);
 
     const allSales = (salesRes.data || []) as any[];
     const allBatches = (batchesRes.data || []) as any[];
     const allWasteLogs = (wasteRes.data || []) as any[];
     const products = (productsRes.data || []) as any[];
+    const allExpenses = (expensesRes.data || []) as any[];
 
     // Filtrar por el período seleccionado
     const periodSales = allSales.filter((s) => {
@@ -115,6 +121,29 @@ export async function GET(request: Request) {
     const periodWasteLogs = allWasteLogs.filter((w) => {
       const d = new Date(w.date);
       return d >= startDate && d <= endDate;
+    });
+
+    const periodExpenses = allExpenses.filter((e) => {
+      const d = new Date(e.expenseDate);
+      return d >= startDate && d <= endDate;
+    });
+
+    let periodExpensesTotal = 0;
+    const periodExpensesByCategory: Record<string, number> = {
+      ARRIENDO: 0,
+      SERVICIOS: 0,
+      NOMINA: 0,
+      INSUMOS: 0,
+      MANTENIMIENTO: 0,
+      TRANSPORTE: 0,
+      OTRO: 0,
+    };
+
+    periodExpenses.forEach((exp) => {
+      const amt = Number(exp.amount) || 0;
+      periodExpensesTotal += amt;
+      periodExpensesByCategory[exp.category] =
+        (periodExpensesByCategory[exp.category] || 0) + amt;
     });
 
     // 1. Métricas de Ventas en el Período
@@ -304,6 +333,11 @@ export async function GET(request: Request) {
       })
       .filter((p) => p.isUnderTarget);
 
+    const netProfit = periodProfit - periodExpensesTotal;
+    const netMarginPercent = periodRevenue > 0
+      ? Number(((netProfit / periodRevenue) * 100).toFixed(2))
+      : 0;
+
     return NextResponse.json({
       success: true,
       data: {
@@ -312,11 +346,20 @@ export async function GET(request: Request) {
         kpi: {
           totalRevenue: periodRevenue,
           totalCost: periodCost,
-          totalProfit: periodProfit,
+          totalProfit: periodProfit, // Ganancia Bruta (Ventas - Costo productos)
           overallRealMarginPercent: periodRealMarginPercent,
+          totalExpenses: periodExpensesTotal, // Gastos Operativos (Insumos, Nómina, Arriendo, Servicios)
+          netProfit, // Verdadera Ganancia Neta
+          netMarginPercent,
           totalQuantityKg: periodQuantityKg,
           salesCount: periodSales.length,
           targetMarginSatisfied: periodRealMarginPercent >= 30.0,
+        },
+        expensesKpi: {
+          totalExpenses: periodExpensesTotal,
+          byCategory: periodExpensesByCategory,
+          count: periodExpenses.length,
+          expenses: periodExpenses,
         },
         purchasesKpi: {
           totalSpent: periodPurchasesCost,

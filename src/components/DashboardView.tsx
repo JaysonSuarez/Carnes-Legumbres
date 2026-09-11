@@ -41,9 +41,17 @@ interface AnalyticsData {
     totalCost: number;
     totalProfit: number;
     overallRealMarginPercent: number;
+    totalExpenses?: number;
+    netProfit?: number;
+    netMarginPercent?: number;
     totalQuantityKg: number;
     salesCount: number;
     targetMarginSatisfied: boolean;
+  };
+  expensesKpi?: {
+    totalExpenses: number;
+    byCategory: Record<string, number>;
+    count: number;
   };
   timelineData: Array<{
     date: string;
@@ -93,6 +101,7 @@ interface AnalyticsData {
 interface DashboardViewProps {
   onNavigateToPos?: () => void;
   onNavigateToInventory?: () => void;
+  onNavigateToExpenses?: () => void;
 }
 
 interface StockAlertProduct {
@@ -108,6 +117,7 @@ interface StockAlertProduct {
 export function DashboardView({
   onNavigateToPos,
   onNavigateToInventory,
+  onNavigateToExpenses,
 }: DashboardViewProps) {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [stockAlerts, setStockAlerts] = useState<StockAlertProduct[]>([]);
@@ -361,6 +371,54 @@ export function DashboardView({
             Despachado en balanza
           </CardContent>
         </Card>
+      </div>
+
+      {/* Resumen Financiero Integral: Verdadera Ganancia Neta */}
+      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 rounded-xl p-4 sm:p-5 text-white shadow-md border border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                Resultado Operativo Real
+              </span>
+              <span className="text-xs text-slate-400">
+                (Deduciendo Mercancía y Gastos)
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-3">
+              <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                {(kpi.netProfit ?? kpi.totalProfit) >= 0
+                  ? `+${formatCurrency(kpi.netProfit ?? kpi.totalProfit)}`
+                  : `-${formatCurrency(Math.abs(kpi.netProfit ?? kpi.totalProfit))}`}
+              </h3>
+              <span className="text-xs font-semibold text-slate-300">
+                Ganancia Neta en Bolsillo ({kpi.netMarginPercent ?? kpi.overallRealMarginPercent}% sobre ventas)
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Ingresos reales descontando costo de compras y gastos operativos (arriendo, servicios, nómina, insumos).
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-slate-700/60 pt-3 md:pt-0 md:pl-5 text-xs shrink-0">
+            <div className="space-y-1">
+              <div className="text-slate-400 text-[11px] font-medium">Gastos Registrados:</div>
+              <div className="font-black text-rose-400 text-base">
+                -{formatCurrency(kpi.totalExpenses || 0)}
+              </div>
+            </div>
+            {onNavigateToExpenses && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onNavigateToExpenses}
+                className="ml-auto md:ml-2 text-xs font-bold bg-white/10 hover:bg-white/20 text-white border-white/20 cursor-pointer"
+              >
+                Ver Gastos <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Proyección y Seguimiento de Lotes de Carne */}

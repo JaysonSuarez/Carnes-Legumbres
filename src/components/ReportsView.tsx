@@ -55,9 +55,17 @@ interface AnalyticsPeriodResponse {
     totalCost: number;
     totalProfit: number;
     overallRealMarginPercent: number;
+    totalExpenses?: number;
+    netProfit?: number;
+    netMarginPercent?: number;
     totalQuantityKg: number;
     salesCount: number;
     targetMarginSatisfied: boolean;
+  };
+  expensesKpi?: {
+    totalExpenses: number;
+    byCategory: Record<string, number>;
+    count: number;
   };
   purchasesKpi: {
     totalSpent: number;
@@ -278,6 +286,38 @@ export function ReportsView() {
               <span>-{formatWeight(data.waste.totalWasteKg)}</span>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Resumen de Verdadera Ganancia Neta en Reportes */}
+      {data && (
+        <div className="bg-slate-900 text-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase font-black tracking-wider text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-2.5 py-0.5 rounded-full">
+                Verdadera Ganancia Neta
+              </span>
+              <span className="text-xs text-slate-400">
+                (Ingresos menos Costo de Mercancía menos Gastos Operativos)
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2.5">
+              <span className="text-2xl sm:text-3xl font-black font-mono">
+                {(data.kpi.netProfit ?? data.kpi.totalProfit) >= 0
+                  ? `+${formatCurrency(data.kpi.netProfit ?? data.kpi.totalProfit)}`
+                  : `-${formatCurrency(Math.abs(data.kpi.netProfit ?? data.kpi.totalProfit))}`}
+              </span>
+              <span className="text-xs text-slate-300 font-medium">
+                Utilidad líquida ({data.kpi.netMarginPercent ?? data.kpi.overallRealMarginPercent}% sobre ventas)
+              </span>
+            </div>
+          </div>
+
+          <div className="text-xs text-slate-300 sm:text-right border-t sm:border-t-0 sm:border-l border-slate-800 pt-3 sm:pt-0 sm:pl-5 space-y-0.5 shrink-0">
+            <div>Ventas Totales: <strong className="text-white font-mono">{formatCurrency(data.kpi.totalRevenue)}</strong></div>
+            <div>Costo Mercancía: <strong className="text-slate-400 font-mono">-{formatCurrency(data.kpi.totalCost)}</strong></div>
+            <div>Gastos Operativos: <strong className="text-rose-400 font-mono">-{formatCurrency(data.kpi.totalExpenses || 0)}</strong></div>
+          </div>
         </div>
       )}
 

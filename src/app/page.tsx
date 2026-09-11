@@ -8,6 +8,7 @@ import { InventoryView } from "@/components/InventoryView";
 import { PosView } from "@/components/PosView";
 import { ReportsView } from "@/components/ReportsView";
 import { CreditsView } from "@/components/CreditsView";
+import { ExpensesView } from "@/components/ExpensesView";
 
 import { LoginForm } from "@/components/LoginForm";
 import { getSession, logout, AuthSession } from "@/lib/auth";
@@ -103,6 +104,7 @@ export default function Home() {
           <DashboardView
             onNavigateToPos={() => setActiveTab("pos")}
             onNavigateToInventory={() => setActiveTab("inventory")}
+            onNavigateToExpenses={() => setActiveTab("expenses")}
           />
         )}
 
@@ -121,6 +123,7 @@ export default function Home() {
         )}
 
         {activeTab === "credits" && <CreditsView />}
+        {activeTab === "expenses" && <ExpensesView />}
       </main>
 
       {/* Footer Minimalista (Oculto en móvil para no estorbar con la navegación inferior) */}
