@@ -23,6 +23,7 @@ import {
   requestBrowserNotificationPermission,
   sendBrowserNotification,
 } from "@/lib/stockAlerts";
+import { getSession } from "@/lib/auth";
 
 export interface StockToast {
   id: string;
@@ -176,17 +177,32 @@ export function StockNotificationCenter({
   };
 
   useEffect(() => {
-    fetchStockAlerts();
-    fetchAdminNotifications();
+    const runFetch = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return; // No hacer peticiones si la pestaña está en segundo plano o minimizada
+      }
+      fetchStockAlerts();
+      const session = getSession();
+      if (session && session.role === "admin") {
+        fetchAdminNotifications();
+      }
+    };
 
-    // Actualizar alertas de stock cada 60s
-    const stockInterval = setInterval(fetchStockAlerts, 60000);
-    // Sondeo en tiempo real de notificaciones de mostrador cada 12s
-    const adminInterval = setInterval(fetchAdminNotifications, 12000);
+    runFetch();
+
+    // Actualizar cada 35 segundos sólo mientras la ventana esté activa y visible
+    const interval = setInterval(runFetch, 35000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        runFetch();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      clearInterval(stockInterval);
-      clearInterval(adminInterval);
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
