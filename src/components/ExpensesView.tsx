@@ -34,6 +34,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { getColombiaDateString } from "@/lib/dateUtils";
 
 export interface Expense {
   id: string;
@@ -126,7 +127,7 @@ export function ExpensesView() {
   const [formCategory, setFormCategory] = useState<string>("INSUMOS");
   const [formDescription, setFormDescription] = useState("");
   const [formAmount, setFormAmount] = useState("");
-  const [formDate, setFormDate] = useState(new Date().toISOString().slice(0, 10));
+  const [formDate, setFormDate] = useState(getColombiaDateString());
   const [formPaymentMethod, setFormPaymentMethod] = useState("EFECTIVO");
   const [formRecipient, setFormRecipient] = useState("");
   const [formReceiptNumber, setFormReceiptNumber] = useState("");
@@ -142,8 +143,11 @@ export function ExpensesView() {
       const query = new URLSearchParams();
       if (period !== "all") query.set("period", period);
       if (selectedCategory !== "ALL") query.set("category", selectedCategory);
+      query.set("_t", Date.now().toString());
 
-      const res = await fetch(`/api/expenses?${query.toString()}`);
+      const res = await fetch(`/api/expenses?${query.toString()}`, {
+        cache: "no-store",
+      });
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setExpenses(data.data);
@@ -164,7 +168,7 @@ export function ExpensesView() {
     setFormCategory("INSUMOS");
     setFormDescription("");
     setFormAmount("");
-    setFormDate(new Date().toISOString().slice(0, 10));
+    setFormDate(getColombiaDateString());
     setFormPaymentMethod("EFECTIVO");
     setFormRecipient("");
     setFormReceiptNumber("");
@@ -178,7 +182,7 @@ export function ExpensesView() {
     setFormCategory(exp.category);
     setFormDescription(exp.description);
     setFormAmount(exp.amount.toString());
-    setFormDate(exp.expenseDate.slice(0, 10));
+    setFormDate(getColombiaDateString(new Date(exp.expenseDate)));
     setFormPaymentMethod(exp.paymentMethod || "EFECTIVO");
     setFormRecipient(exp.recipient || "");
     setFormReceiptNumber(exp.receiptNumber || "");
@@ -208,7 +212,7 @@ export function ExpensesView() {
         category: formCategory,
         description: formDescription.trim(),
         amount: numAmount,
-        expenseDate: new Date(formDate).toISOString(),
+        expenseDate: formDate,
         paymentMethod: formPaymentMethod,
         recipient: formRecipient.trim() || null,
         receiptNumber: formReceiptNumber.trim() || null,
@@ -377,7 +381,7 @@ export function ExpensesView() {
       </div>
 
       {/* Tarjetas KPI de Resumen */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Total Gastos */}
         <Card className="border-rose-200 bg-rose-50/40 shadow-xs">
           <CardHeader className="pb-2">
@@ -440,30 +444,6 @@ export function ExpensesView() {
           <CardContent className="pt-0">
             <p className="text-[11px] text-slate-500">
               Bolsas, vinipel, aseo y transporte
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Promedio por Registro */}
-        <Card className="border-slate-200 bg-white shadow-xs">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Promedio por Desembolso
-              </span>
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                <DollarSign className="w-4 h-4" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl font-black text-slate-900 mt-1">
-              {filteredExpenses.length > 0
-                ? formatCurrency(Math.round(totalAmount / filteredExpenses.length))
-                : "$0"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-[11px] text-slate-500">
-              Control de salida de dinero
             </p>
           </CardContent>
         </Card>
@@ -564,6 +544,7 @@ export function ExpensesView() {
                     day: "2-digit",
                     month: "short",
                     year: "numeric",
+                    timeZone: "America/Bogota",
                   });
 
                   return (

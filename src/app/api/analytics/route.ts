@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { calculateRealMargin } from "@/lib/finance";
 import { getTenantId } from "@/lib/tenant";
+import {
+  getColombiaDateParts,
+  getColombiaDayRange,
+  getColombiaWeekRange,
+  getColombiaBiweekRange,
+  getColombiaMonthRange,
+} from "@/lib/dateUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +17,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") || "monthly"; // "daily" | "weekly" | "biweekly" | "monthly"
 
-    const now = new Date();
+    const colParts = getColombiaDateParts();
     let startDate = new Date();
     let endDate = new Date();
     let periodLabel = "";
@@ -21,36 +28,33 @@ export async function GET(request: Request) {
     ];
 
     if (period === "daily") {
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      periodLabel = `Hoy (${now.getDate()} de ${monthNames[now.getMonth()]})`;
+      const { startIso, endIso } = getColombiaDayRange();
+      startDate = new Date(startIso);
+      endDate = new Date(endIso);
+      periodLabel = `Hoy (${colParts.day} de ${monthNames[colParts.month - 1]})`;
     } else if (period === "weekly") {
-      // Semana actual (Lunes a Domingo)
-      const day = now.getDay();
-      const diffToMonday = (day === 0 ? -6 : 1) - day;
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday, 0, 0, 0, 0);
-      endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 6);
-      endDate.setHours(23, 59, 59, 999);
-      periodLabel = `Esta Semana (${startDate.getDate()} - ${endDate.getDate()} de ${monthNames[now.getMonth()]})`;
+      const { startIso, endIso } = getColombiaWeekRange();
+      startDate = new Date(startIso);
+      endDate = new Date(endIso);
+      const startDay = new Date(startDate.getTime() - 5 * 3600000).getUTCDate();
+      const endDay = new Date(endDate.getTime() - 5 * 3600000).getUTCDate();
+      periodLabel = `Esta Semana (${startDay} - ${endDay} de ${monthNames[colParts.month - 1]})`;
     } else if (period === "biweekly") {
-      const currentDay = now.getDate();
-      if (currentDay <= 15) {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        endDate = new Date(now.getFullYear(), now.getMonth(), 15, 23, 59, 59, 999);
-        periodLabel = `1ra Quincena (1 - 15 de ${monthNames[now.getMonth()]})`;
+      const { startIso, endIso } = getColombiaBiweekRange();
+      startDate = new Date(startIso);
+      endDate = new Date(endIso);
+      if (colParts.day <= 15) {
+        periodLabel = `1ra Quincena (1 - 15 de ${monthNames[colParts.month - 1]})`;
       } else {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 16, 0, 0, 0, 0);
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        endDate = new Date(now.getFullYear(), now.getMonth(), lastDay, 23, 59, 59, 999);
-        periodLabel = `2da Quincena (16 - ${lastDay} de ${monthNames[now.getMonth()]})`;
+        const lastDay = new Date(Date.UTC(colParts.year, colParts.month, 0)).getUTCDate();
+        periodLabel = `2da Quincena (16 - ${lastDay} de ${monthNames[colParts.month - 1]})`;
       }
     } else {
       // monthly
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-      endDate = new Date(now.getFullYear(), now.getMonth(), lastDay, 23, 59, 59, 999);
-      periodLabel = `Mes Actual (${monthNames[now.getMonth()]} ${now.getFullYear()})`;
+      const { startIso, endIso } = getColombiaMonthRange();
+      startDate = new Date(startIso);
+      endDate = new Date(endIso);
+      periodLabel = `Mes Actual (${monthNames[colParts.month - 1]} ${colParts.year})`;
     }
 
     const tenantId = getTenantId(request);
@@ -381,7 +385,9 @@ export async function GET(request: Request) {
       },
     }, {
       headers: {
-        "Cache-Control": "private, max-age=15, stale-while-revalidate=30",
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
       },
     });
   } catch (error) {

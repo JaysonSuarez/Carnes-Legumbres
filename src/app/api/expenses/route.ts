@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabase, genId } from "@/lib/supabase";
 import { getTenantId } from "@/lib/tenant";
+import {
+  getColombiaDayRange,
+  getColombiaWeekRange,
+  getColombiaBiweekRange,
+  getColombiaMonthRange,
+  colombiaDateStringToIso,
+} from "@/lib/dateUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -20,36 +27,18 @@ export async function GET(request: Request) {
       query = query.eq("category", category);
     }
 
-    const now = new Date();
     if (period === "daily") {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      query = query.gte("expenseDate", start.toISOString()).lte("expenseDate", end.toISOString());
+      const { startIso, endIso } = getColombiaDayRange();
+      query = query.gte("expenseDate", startIso).lte("expenseDate", endIso);
     } else if (period === "weekly") {
-      const day = now.getDay();
-      const diffToMonday = (day === 0 ? -6 : 1) - day;
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday, 0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(start.getDate() + 6);
-      end.setHours(23, 59, 59, 999);
-      query = query.gte("expenseDate", start.toISOString()).lte("expenseDate", end.toISOString());
+      const { startIso, endIso } = getColombiaWeekRange();
+      query = query.gte("expenseDate", startIso).lte("expenseDate", endIso);
     } else if (period === "biweekly") {
-      const currentDay = now.getDate();
-      if (currentDay <= 15) {
-        const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        const end = new Date(now.getFullYear(), now.getMonth(), 15, 23, 59, 59, 999);
-        query = query.gte("expenseDate", start.toISOString()).lte("expenseDate", end.toISOString());
-      } else {
-        const start = new Date(now.getFullYear(), now.getMonth(), 16, 0, 0, 0, 0);
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        const end = new Date(now.getFullYear(), now.getMonth(), lastDay, 23, 59, 59, 999);
-        query = query.gte("expenseDate", start.toISOString()).lte("expenseDate", end.toISOString());
-      }
+      const { startIso, endIso } = getColombiaBiweekRange();
+      query = query.gte("expenseDate", startIso).lte("expenseDate", endIso);
     } else if (period === "monthly") {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-      const end = new Date(now.getFullYear(), now.getMonth(), lastDay, 23, 59, 59, 999);
-      query = query.gte("expenseDate", start.toISOString()).lte("expenseDate", end.toISOString());
+      const { startIso, endIso } = getColombiaMonthRange();
+      query = query.gte("expenseDate", startIso).lte("expenseDate", endIso);
     }
 
     const { data: expenses, error } = await query.order("expenseDate", { ascending: false });
@@ -80,7 +69,9 @@ export async function GET(request: Request) {
       },
       {
         headers: {
-          "Cache-Control": "private, max-age=5, stale-while-revalidate=15",
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
         },
       }
     );
@@ -137,7 +128,7 @@ export async function POST(request: Request) {
       category,
       description: description.trim(),
       amount: parsedAmount,
-      expenseDate: expenseDate ? new Date(expenseDate).toISOString() : new Date().toISOString(),
+      expenseDate: colombiaDateStringToIso(expenseDate),
       paymentMethod,
       recipient: recipient ? recipient.trim() : null,
       receiptNumber: receiptNumber ? receiptNumber.trim() : null,
@@ -182,6 +173,9 @@ export async function PUT(request: Request) {
 
     if (updates.amount) {
       updates.amount = Number(updates.amount);
+    }
+    if (updates.expenseDate) {
+      updates.expenseDate = colombiaDateStringToIso(updates.expenseDate);
     }
     updates.updatedAt = new Date().toISOString();
 
