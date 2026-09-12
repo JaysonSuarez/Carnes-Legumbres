@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { formatCurrency, formatWeight } from "@/lib/finance";
 import {
   Calendar,
   Receipt,
   ShoppingBag,
   TrendingUp,
+  TrendingDown,
+  ArrowUpRight,
+  ArrowDownLeft,
   AlertTriangle,
   Printer,
   Search,
@@ -20,6 +23,11 @@ import {
   Layers,
   ChevronRight,
   Info,
+  Filter,
+  Eye,
+  WalletCards,
+  RefreshCw,
+  X,
 } from "lucide-react";
 import {
   Card,
@@ -34,8 +42,24 @@ import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InvoiceDialog, SaleInvoiceData } from "@/components/InvoiceDialog";
+import { getColombiaDateString } from "@/lib/dateUtils";
 
-type PeriodType = "daily" | "weekly" | "biweekly" | "monthly";
+type PeriodType = "daily" | "weekly" | "monthly" | "all";
+
+export interface MovementItem {
+  id: string;
+  type: "VENTA" | "GASTO" | "COMPRA" | "ABONO_CREDITO";
+  flow: "INGRESO" | "EGRESO";
+  date: string;
+  timeStr: string;
+  title: string;
+  subtitle: string;
+  amount: number;
+  paymentMethod?: string;
+  category?: string;
+  referenceId?: string;
+  raw?: any;
+}
 
 interface Benchmark {
   frequency: string;
@@ -48,7 +72,7 @@ interface Benchmark {
 }
 
 interface AnalyticsPeriodResponse {
-  period: PeriodType;
+  period: string;
   periodLabel: string;
   kpi: {
     totalRevenue: number;
@@ -56,6 +80,11 @@ interface AnalyticsPeriodResponse {
     totalProfit: number;
     overallRealMarginPercent: number;
     totalExpenses?: number;
+    totalPurchases?: number;
+    totalCreditPayments?: number;
+    totalIngresos?: number;
+    totalEgresos?: number;
+    netCashProfit?: number;
     netProfit?: number;
     netMarginPercent?: number;
     totalQuantityKg: number;
@@ -66,6 +95,7 @@ interface AnalyticsPeriodResponse {
     totalExpenses: number;
     byCategory: Record<string, number>;
     count: number;
+    expenses?: any[];
   };
   purchasesKpi: {
     totalSpent: number;
@@ -79,17 +109,26 @@ interface AnalyticsPeriodResponse {
   };
   periodSales: any[];
   periodBatches: any[];
+  periodExpenses?: any[];
+  periodCreditPayments?: any[];
+  movements?: MovementItem[];
   frequencyBenchmarks: Benchmark[];
 }
 
 export function ReportsView() {
   const [period, setPeriod] = useState<PeriodType>("daily");
+  const [selectedDate, setSelectedDate] = useState<string>(getColombiaDateString());
+  const [isCustomDate, setIsCustomDate] = useState<boolean>(false);
+
   const [data, setData] = useState<AnalyticsPeriodResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filtros y diálogos
-  const [ticketSearch, setTicketSearch] = useState("");
+  // Filtros de Movimientos
+  const [movementFilter, setMovementFilter] = useState<"ALL" | "INGRESO" | "EGRESO">("ALL");
+  const [movementSearch, setMovementSearch] = useState("");
+
+  // Diálogos para auditoría de facturas
   const [selectedInvoice, setSelectedInvoice] = useState<SaleInvoiceData | null>(null);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
 
@@ -97,28 +136,47 @@ export function ReportsView() {
   const [simWeeklyBudget, setSimWeeklyBudget] = useState<number>(2500000);
   const [mobileFreqTab, setMobileFreqTab] = useState<number>(3); // 1, 2, 3, 4 compras/sem
 
-  const fetchReports = async (p: PeriodType) => {
+  const fetchReports = async (p: string, customD?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/analytics?period=${p}`);
+      const url = customD
+        ? `/api/analytics?date=${customD}&_t=${Date.now()}`
+        : `/api/analytics?period=${p}&_t=${Date.now()}`;
+
+      const res = await fetch(url, { cache: "no-store" });
       const json = await res.json();
       if (json.success && json.data) {
         setData(json.data);
       } else {
-        setError(json.error || "No se pudieron obtener los reportes.");
+        setError(json.error || "No se pudieron obtener las finanzas.");
       }
     } catch (e) {
-      console.error("Error al cargar reportes:", e);
-      setError("Error de conexión al cargar reportes.");
+      console.error("Error al cargar finanzas:", e);
+      setError("Error de conexión al cargar finanzas.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchReports(period);
-  }, [period]);
+    if (isCustomDate) {
+      fetchReports("", selectedDate);
+    } else {
+      fetchReports(period);
+    }
+  }, [period, isCustomDate, selectedDate]);
+
+  const handleSelectPeriodTab = (p: PeriodType) => {
+    setIsCustomDate(false);
+    setPeriod(p);
+  };
+
+  const handleDateChange = (newDate: string) => {
+    if (!newDate) return;
+    setSelectedDate(newDate);
+    setIsCustomDate(true);
+  };
 
   const handleOpenInvoice = (sale: any) => {
     setSelectedInvoice(sale);
@@ -128,197 +186,576 @@ export function ReportsView() {
   const periodTabs: Array<{ id: PeriodType; label: string; desc: string }> = [
     { id: "daily", label: "Diario", desc: "Hoy" },
     { id: "weekly", label: "Semanal", desc: "Esta semana (Lun-Dom)" },
-    { id: "biweekly", label: "Quincenal", desc: "Quincena en curso" },
     { id: "monthly", label: "Mensual", desc: "Mes actual completo" },
+    { id: "all", label: "Todo", desc: "Histórico completo" },
   ];
 
-  const filteredSales = (data?.periodSales || []).filter((sale) => {
-    const q = ticketSearch.toLowerCase();
+  // Cálculos consolidados de Ingresos, Egresos y Ganancia
+  const totalIngresos = useMemo(() => {
+    if (!data) return 0;
     return (
-      sale.saleCode?.toLowerCase().includes(q) ||
-      sale.customerName?.toLowerCase().includes(q) ||
-      sale.paymentMethod?.toLowerCase().includes(q)
+      data.kpi.totalIngresos ??
+      (data.kpi.totalRevenue + (data.kpi.totalCreditPayments || 0))
     );
-  });
+  }, [data]);
+
+  const totalEgresos = useMemo(() => {
+    if (!data) return 0;
+    return (
+      data.kpi.totalEgresos ??
+      ((data.kpi.totalExpenses || 0) + (data.purchasesKpi.totalSpent || 0))
+    );
+  }, [data]);
+
+  const gananciaNeta = useMemo(() => {
+    if (!data) return 0;
+    return data.kpi.netCashProfit ?? (totalIngresos - totalEgresos);
+  }, [data, totalIngresos, totalEgresos]);
+
+  // Lista de Movimientos Unificada y Filtrada
+  const allMovements = useMemo(() => {
+    return data?.movements || [];
+  }, [data]);
+
+  const filteredMovements = useMemo(() => {
+    let list = allMovements;
+    if (movementFilter !== "ALL") {
+      list = list.filter((m) => m.flow === movementFilter);
+    }
+    if (movementSearch.trim()) {
+      const q = movementSearch.toLowerCase();
+      list = list.filter(
+        (m) =>
+          m.title.toLowerCase().includes(q) ||
+          m.subtitle.toLowerCase().includes(q) ||
+          (m.paymentMethod && m.paymentMethod.toLowerCase().includes(q)) ||
+          (m.category && m.category.toLowerCase().includes(q)) ||
+          (m.referenceId && m.referenceId.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [allMovements, movementFilter, movementSearch]);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Selector de Período Superior */}
+      {/* Selector de Período y Fecha Superior */}
       <Card className="shadow-xs border-slate-200">
-        <CardContent className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <CardContent className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-slate-700" />
               <h1 className="text-lg font-bold text-slate-900">
-                Registro de Ventas, Compras y Rentabilidad
+                Finanzas y Flujo de Caja
               </h1>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Auditoría periódica de tickets emitidos, lotes adquiridos y comparación de compras por frecuencia.
+              Control consolidado de ingresos, egresos, rentabilidad y auditoría de movimientos diarios.
             </p>
           </div>
 
-          {/* Segmented Control de Período */}
-          <div className="inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200 self-start md:self-auto">
-            {periodTabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setPeriod(tab.id)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                  period === tab.id
-                    ? "bg-white text-slate-900 shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
+          <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-auto">
+            {/* Selector de Fecha Específica */}
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+              <span className="text-[11px] font-medium text-slate-500">Día:</span>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => handleDateChange(e.target.value)}
+                className={`text-xs px-2 py-1 rounded bg-white border cursor-pointer font-mono font-medium outline-none transition-all ${
+                  isCustomDate
+                    ? "border-emerald-500 text-emerald-800 bg-emerald-50/50 ring-1 ring-emerald-400 font-bold"
+                    : "border-slate-200 text-slate-700 hover:border-slate-300"
                 }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+              />
+            </div>
+
+            {/* Segmented Control de Período */}
+            <div className="inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+              {periodTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleSelectPeriodTab(tab.id)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                    !isCustomDate && period === tab.id
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Rango Activo */}
-      <div className="flex items-center justify-between px-1">
+      {/* Rango Activo y Zona Horaria */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <div className="flex items-center gap-2 text-xs text-slate-600">
           <Clock className="w-4 h-4 text-slate-500" />
-          <span>Mostrando datos para:</span>
+          <span>Mostrando finanzas para:</span>
           <strong className="text-slate-900 font-medium">
-            {data?.periodLabel || "Cargando período..."}
+            {isCustomDate ? `Día seleccionado (${selectedDate})` : data?.periodLabel || "Cargando período..."}
           </strong>
+          {isCustomDate && (
+            <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300 text-[10px]">
+              Filtro por Fecha
+            </Badge>
+          )}
         </div>
 
         <Badge variant="outline" className="text-[11px] font-mono border-slate-300 text-slate-700">
-          Objetivo de Margen: ≥ 30% Real
+          Zona Horaria: Colombia (UTC-5)
         </Badge>
       </div>
 
-      {/* Tarjetas KPI del Período */}
+      {/* Tarjetas KPI Principales: INGRESOS, EGRESOS, GANANCIA */}
       {loading && !data ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Skeleton className="h-28 rounded-xl" />
-          <Skeleton className="h-28 rounded-xl" />
-          <Skeleton className="h-28 rounded-xl" />
-          <Skeleton className="h-28 rounded-xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Skeleton className="h-32 rounded-xl" />
+          <Skeleton className="h-32 rounded-xl" />
+          <Skeleton className="h-32 rounded-xl" />
         </div>
       ) : !data ? (
         <Card className="border-red-200 bg-red-50/50 p-6 text-center">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-          <p className="text-sm font-semibold text-red-900">{error || "No se pudieron cargar los datos de auditoría"}</p>
-          <Button onClick={() => fetchReports(period)} className="mt-3 text-xs bg-slate-900 text-white cursor-pointer">
+          <p className="text-sm font-semibold text-red-900">
+            {error || "No se pudieron cargar los datos de finanzas"}
+          </p>
+          <Button
+            onClick={() => (isCustomDate ? fetchReports("", selectedDate) : fetchReports(period))}
+            className="mt-3 text-xs bg-slate-900 text-white cursor-pointer"
+          >
             Reintentar
           </Button>
         </Card>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Total Ventas */}
-          <Card className="shadow-xs border-slate-200">
-            <CardHeader className="p-4 pb-2">
-              <CardDescription className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                <span>Ventas Totales</span>
-                <Receipt className="w-4 h-4 text-slate-400" />
-              </CardDescription>
-              <CardTitle className="text-xl font-bold text-slate-900 font-mono">
-                {formatCurrency(data.kpi.totalRevenue)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 text-[11px] text-slate-500 flex justify-between items-center">
-              <span>{data.kpi.salesCount} tickets cobrados</span>
-              <span>{formatWeight(data.kpi.totalQuantityKg)}</span>
-            </CardContent>
-          </Card>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* 1. INGRESOS */}
+            <Card className="shadow-xs border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/30">
+              <CardHeader className="p-4 pb-2">
+                <CardDescription className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
+                    Ingresos
+                  </span>
+                  <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px]">
+                    Entradas
+                  </Badge>
+                </CardDescription>
+                <CardTitle className="text-2xl sm:text-3xl font-black text-emerald-700 font-mono tracking-tight">
+                  +{formatCurrency(totalIngresos)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 text-[11px] text-slate-600 space-y-1">
+                <div className="flex justify-between">
+                  <span>Ventas cobradas:</span>
+                  <strong className="font-mono text-slate-800">
+                    {formatCurrency(data.kpi.totalRevenue)} ({data.kpi.salesCount} tickets)
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Abonos a crédito:</span>
+                  <strong className="font-mono text-emerald-700">
+                    +{formatCurrency(data.kpi.totalCreditPayments || 0)}
+                  </strong>
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Compras / Inversión */}
-          <Card className="shadow-xs border-slate-200">
-            <CardHeader className="p-4 pb-2">
-              <CardDescription className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                <span>Compras / Lotes</span>
-                <ShoppingBag className="w-4 h-4 text-slate-400" />
-              </CardDescription>
-              <CardTitle className="text-xl font-bold text-slate-900 font-mono">
-                {formatCurrency(data.purchasesKpi.totalSpent)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 text-[11px] text-slate-500 flex justify-between items-center">
-              <span>{data.purchasesKpi.batchesCount} compras registradas</span>
-              <span>{formatWeight(data.purchasesKpi.totalKg)} comprados</span>
-            </CardContent>
-          </Card>
+            {/* 2. EGRESOS */}
+            <Card className="shadow-xs border-rose-200/80 bg-gradient-to-br from-white to-rose-50/30">
+              <CardHeader className="p-4 pb-2">
+                <CardDescription className="text-xs font-bold text-rose-800 uppercase tracking-wider flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <ArrowUpRight className="w-4 h-4 text-rose-600" />
+                    Egresos
+                  </span>
+                  <Badge variant="outline" className="bg-rose-100 text-rose-800 border-rose-200 text-[10px]">
+                    Salidas
+                  </Badge>
+                </CardDescription>
+                <CardTitle className="text-2xl sm:text-3xl font-black text-rose-700 font-mono tracking-tight">
+                  -{formatCurrency(totalEgresos)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 text-[11px] text-slate-600 space-y-1">
+                <div className="flex justify-between">
+                  <span>Gastos operativos:</span>
+                  <strong className="font-mono text-slate-800">
+                    -{formatCurrency(data.kpi.totalExpenses || 0)} ({data.expensesKpi?.count || 0} reg)
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Compras de lotes:</span>
+                  <strong className="font-mono text-rose-700">
+                    -{formatCurrency(data.purchasesKpi.totalSpent || 0)} ({data.purchasesKpi.batchesCount} lotes)
+                  </strong>
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Utilidad Bruta Real */}
-          <Card className="shadow-xs border-slate-200">
-            <CardHeader className="p-4 pb-2">
-              <CardDescription className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                <span>Utilidad Real</span>
-                <TrendingUp className="w-4 h-4 text-slate-400" />
-              </CardDescription>
-              <CardTitle
-                className={`text-xl font-bold font-mono ${
-                  data.kpi.totalProfit > 0 ? "text-emerald-700" : "text-slate-900"
-                }`}
-              >
-                {data.kpi.totalProfit > 0 ? `+${formatCurrency(data.kpi.totalProfit)}` : formatCurrency(0)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 text-[11px] flex justify-between items-center">
-              <span className="text-slate-500">Margen Efectivo:</span>
+            {/* 3. GANANCIA NETA */}
+            <Card
+              className={`shadow-xs border-2 ${
+                gananciaNeta >= 0
+                  ? "border-emerald-500/80 bg-gradient-to-br from-emerald-50/40 to-white"
+                  : "border-rose-500/80 bg-gradient-to-br from-rose-50/40 to-white"
+              }`}
+            >
+              <CardHeader className="p-4 pb-2">
+                <CardDescription
+                  className={`text-xs font-black uppercase tracking-wider flex items-center justify-between ${
+                    gananciaNeta >= 0 ? "text-emerald-900" : "text-rose-900"
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {gananciaNeta >= 0 ? (
+                      <TrendingUp className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <TrendingDown className="w-4 h-4 text-rose-600" />
+                    )}
+                    Ganancia Neta
+                  </span>
+                  <Badge
+                    variant={gananciaNeta >= 0 ? "success" : "destructive"}
+                    className="text-[10px] font-bold"
+                  >
+                    {gananciaNeta >= 0 ? "Superávit" : "Déficit"}
+                  </Badge>
+                </CardDescription>
+                <CardTitle
+                  className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${
+                    gananciaNeta >= 0 ? "text-emerald-800" : "text-rose-800"
+                  }`}
+                >
+                  {gananciaNeta >= 0
+                    ? `+${formatCurrency(gananciaNeta)}`
+                    : `-${formatCurrency(Math.abs(gananciaNeta))}`}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 text-[11px] text-slate-600 space-y-1">
+                <div className="flex justify-between">
+                  <span>Fórmula:</span>
+                  <span className="font-medium text-slate-700">Ingresos - Egresos</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Margen s/ Ingresos:</span>
+                  <strong className="font-bold text-slate-800">
+                    {totalIngresos > 0
+                      ? `${Math.round((gananciaNeta / totalIngresos) * 100)}%`
+                      : "N/A"}
+                  </strong>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Barra Informativa Secundaria (Mermas & Margen Mercancía) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+            <div className="flex items-center justify-between px-2">
+              <span className="text-slate-500">Margen Real Mercancía:</span>
               <Badge
                 variant={data.kpi.overallRealMarginPercent >= 30 ? "success" : "destructive"}
-                className="text-[10px] font-bold"
+                className="text-[11px] font-mono font-bold"
               >
                 {data.kpi.overallRealMarginPercent}% Real
               </Badge>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="flex items-center justify-between px-2 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0">
+              <span className="text-slate-500">Mermas / Descartes:</span>
+              <strong className="font-mono text-rose-600">
+                -{formatCurrency(data.waste.totalWasteCost)} ({formatWeight(data.waste.totalWasteKg)})
+              </strong>
+            </div>
+            <div className="flex items-center justify-between px-2 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0">
+              <span className="text-slate-500">Peso Total Despachado:</span>
+              <strong className="font-mono text-slate-800">
+                {formatWeight(data.kpi.totalQuantityKg)}
+              </strong>
+            </div>
+          </div>
 
-          {/* Pérdidas por Merma */}
+          {/* SECCIÓN PRINCIPAL: MOVIMIENTOS Y LIBRO DIARIO DE CAJA */}
           <Card className="shadow-xs border-slate-200">
-            <CardHeader className="p-4 pb-2">
-              <CardDescription className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                <span>Mermas / Pérdidas</span>
-                <AlertTriangle className="w-4 h-4 text-rose-500" />
-              </CardDescription>
-              <CardTitle className="text-xl font-bold text-rose-600 font-mono">
-                -{formatCurrency(data.waste.totalWasteCost)}
-              </CardTitle>
+            <CardHeader className="p-4 sm:p-5 pb-3">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <WalletCards className="w-5 h-5 text-slate-700" />
+                    Movimientos del {isCustomDate ? "Día Seleccionado" : "Período"}
+                    <Badge variant="outline" className="ml-1 text-xs font-mono font-medium">
+                      {filteredMovements.length} registro{filteredMovements.length !== 1 ? "s" : ""}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    {isCustomDate ? `Auditoría detallada del ${selectedDate}` : data?.periodLabel || ""} • Historial cronológico de ventas, abonos, gastos y compras.
+                  </CardDescription>
+                </div>
+
+                {/* Filtros de Flujo y Buscador */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                  <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setMovementFilter("ALL")}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                        movementFilter === "ALL"
+                          ? "bg-white text-slate-900 shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Todos ({allMovements.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMovementFilter("INGRESO")}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                        movementFilter === "INGRESO"
+                          ? "bg-emerald-600 text-white shadow-xs"
+                          : "text-emerald-700 hover:text-emerald-900"
+                      }`}
+                    >
+                      <ArrowDownLeft className="w-3.5 h-3.5" />
+                      Ingresos ({allMovements.filter((m) => m.flow === "INGRESO").length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMovementFilter("EGRESO")}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                        movementFilter === "EGRESO"
+                          ? "bg-rose-600 text-white shadow-xs"
+                          : "text-rose-700 hover:text-rose-900"
+                      }`}
+                    >
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                      Egresos ({allMovements.filter((m) => m.flow === "EGRESO").length})
+                    </button>
+                  </div>
+
+                  {/* Buscador de Movimientos */}
+                  <div className="relative w-full sm:w-56">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                    <Input
+                      placeholder="Buscar ticket, cliente, gasto..."
+                      value={movementSearch}
+                      onChange={(e) => setMovementSearch(e.target.value)}
+                      className="pl-8 h-8 text-xs bg-white"
+                    />
+                    {movementSearch && (
+                      <button
+                        onClick={() => setMovementSearch("")}
+                        className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="p-4 pt-0 text-[11px] text-slate-500 flex justify-between items-center">
-              <span>{data.waste.logsCount} descartes</span>
-              <span>-{formatWeight(data.waste.totalWasteKg)}</span>
+
+            <CardContent className="p-4 sm:p-5 pt-0">
+              {filteredMovements.length === 0 ? (
+                <div className="text-center py-10 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
+                  <WalletCards className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs font-semibold text-slate-700">
+                    No hay movimientos registrados {movementSearch ? "para esta búsqueda" : `en este ${isCustomDate ? "día" : "período"}`}.
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Las ventas cobradas, abonos a crédito, gastos operativos y compras de lotes aparecerán automáticamente aquí.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Tarjetas Móviles de Movimientos (< md) */}
+                  <div className="md:hidden space-y-2.5">
+                    {filteredMovements.map((m) => {
+                      const isIncome = m.flow === "INGRESO";
+                      return (
+                        <div
+                          key={m.id}
+                          className={`p-3 rounded-xl border bg-white shadow-xs space-y-2 ${
+                            isIncome
+                              ? "border-emerald-100 hover:border-emerald-300"
+                              : "border-rose-100 hover:border-rose-300"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {isIncome ? (
+                                <span className="p-1 rounded bg-emerald-100 text-emerald-700">
+                                  <ArrowDownLeft className="w-3.5 h-3.5" />
+                                </span>
+                              ) : (
+                                <span className="p-1 rounded bg-rose-100 text-rose-700">
+                                  <ArrowUpRight className="w-3.5 h-3.5" />
+                                </span>
+                              )}
+                              <Badge
+                                variant={
+                                  m.type === "VENTA"
+                                    ? "default"
+                                    : m.type === "ABONO_CREDITO"
+                                    ? "success"
+                                    : m.type === "GASTO"
+                                    ? "destructive"
+                                    : "outline"
+                                }
+                                className="text-[10px] font-bold"
+                              >
+                                {m.type === "VENTA" && "Venta"}
+                                {m.type === "ABONO_CREDITO" && "Abono Fiado"}
+                                {m.type === "GASTO" && "Gasto Operativo"}
+                                {m.type === "COMPRA" && "Compra Lote"}
+                              </Badge>
+                              {m.paymentMethod && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded font-medium">
+                                  {m.paymentMethod}
+                                </span>
+                              )}
+                            </div>
+
+                            <span
+                              className={`font-mono font-black text-sm ${
+                                isIncome ? "text-emerald-700" : "text-rose-700"
+                              }`}
+                            >
+                              {isIncome ? `+${formatCurrency(m.amount)}` : `-${formatCurrency(m.amount)}`}
+                            </span>
+                          </div>
+
+                          <div className="text-xs">
+                            <div className="font-bold text-slate-900">{m.title}</div>
+                            <div className="text-slate-500 text-[11px] truncate">{m.subtitle}</div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] text-slate-400">
+                            <span className="font-mono flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              {m.timeStr}
+                              {isCustomDate ? "" : ` • ${new Date(m.date).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })}`}
+                            </span>
+
+                            {m.type === "VENTA" && m.raw && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenInvoice(m.raw)}
+                                className="h-6 text-[10px] px-2 gap-1 border-slate-200 hover:bg-slate-50 cursor-pointer"
+                              >
+                                <Printer className="w-3 h-3 text-slate-500" />
+                                Factura
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Tabla Desktop de Movimientos (>= md) */}
+                  <div className="hidden md:block overflow-x-auto border border-slate-200 rounded-lg">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                        <tr>
+                          <th className="py-2.5 px-3">Hora / Fecha</th>
+                          <th className="py-2.5 px-3">Flujo / Tipo</th>
+                          <th className="py-2.5 px-3">Concepto y Detalle</th>
+                          <th className="py-2.5 px-3">Medio de Pago / Categoría</th>
+                          <th className="py-2.5 px-3 text-right">Monto</th>
+                          <th className="py-2.5 px-3 text-center">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredMovements.map((m) => {
+                          const isIncome = m.flow === "INGRESO";
+                          return (
+                            <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
+                              <td className="py-2.5 px-3 text-slate-600 font-mono whitespace-nowrap">
+                                <div className="font-bold text-slate-900">{m.timeStr}</div>
+                                <div className="text-[10px] text-slate-400">
+                                  {new Date(m.date).toLocaleDateString("es-CO", {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                  })}
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <div className="flex items-center gap-1.5">
+                                  {isIncome ? (
+                                    <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  ) : (
+                                    <ArrowUpRight className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                  )}
+                                  <Badge
+                                    variant={
+                                      m.type === "VENTA"
+                                        ? "default"
+                                        : m.type === "ABONO_CREDITO"
+                                        ? "success"
+                                        : m.type === "GASTO"
+                                        ? "destructive"
+                                        : "outline"
+                                    }
+                                    className="text-[10px] font-bold"
+                                  >
+                                    {m.type === "VENTA" && "Venta"}
+                                    {m.type === "ABONO_CREDITO" && "Abono Fiado"}
+                                    {m.type === "GASTO" && "Gasto Operativo"}
+                                    {m.type === "COMPRA" && "Compra Lote"}
+                                  </Badge>
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <div className="font-bold text-slate-900">{m.title}</div>
+                                <div className="text-slate-500 text-[11px] truncate max-w-md">
+                                  {m.subtitle}
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-medium">
+                                  {m.paymentMethod || m.category || "General"}
+                                </span>
+                                {m.category && m.category !== m.paymentMethod && (
+                                  <span className="ml-1 text-[10px] text-slate-400">
+                                    ({m.category})
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap">
+                                <span className={isIncome ? "text-emerald-700" : "text-rose-700"}>
+                                  {isIncome ? `+${formatCurrency(m.amount)}` : `-${formatCurrency(m.amount)}`}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                {m.type === "VENTA" && m.raw ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenInvoice(m.raw)}
+                                    className="h-7 text-[11px] gap-1 px-2.5 cursor-pointer"
+                                  >
+                                    <Printer className="w-3 h-3 text-slate-500" />
+                                    Ver Factura
+                                  </Button>
+                                ) : (
+                                  <span className="text-[11px] text-slate-400">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
-        </div>
-      )}
-
-      {/* Resumen de Verdadera Ganancia Neta en Reportes */}
-      {data && (
-        <div className="bg-slate-900 text-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase font-black tracking-wider text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-2.5 py-0.5 rounded-full">
-                Verdadera Ganancia Neta
-              </span>
-              <span className="text-xs text-slate-400">
-                (Ingresos menos Costo de Mercancía menos Gastos Operativos)
-              </span>
-            </div>
-            <div className="mt-2 flex items-baseline gap-2.5">
-              <span className="text-2xl sm:text-3xl font-black font-mono">
-                {(data.kpi.netProfit ?? data.kpi.totalProfit) >= 0
-                  ? `+${formatCurrency(data.kpi.netProfit ?? data.kpi.totalProfit)}`
-                  : `-${formatCurrency(Math.abs(data.kpi.netProfit ?? data.kpi.totalProfit))}`}
-              </span>
-              <span className="text-xs text-slate-300 font-medium">
-                Utilidad líquida ({data.kpi.netMarginPercent ?? data.kpi.overallRealMarginPercent}% sobre ventas)
-              </span>
-            </div>
-          </div>
-
-          <div className="text-xs text-slate-300 sm:text-right border-t sm:border-t-0 sm:border-l border-slate-800 pt-3 sm:pt-0 sm:pl-5 space-y-0.5 shrink-0">
-            <div>Ventas Totales: <strong className="text-white font-mono">{formatCurrency(data.kpi.totalRevenue)}</strong></div>
-            <div>Costo Mercancía: <strong className="text-slate-400 font-mono">-{formatCurrency(data.kpi.totalCost)}</strong></div>
-            <div>Gastos Operativos: <strong className="text-rose-400 font-mono">-{formatCurrency(data.kpi.totalExpenses || 0)}</strong></div>
-          </div>
-        </div>
+        </>
       )}
 
       {/* SECCIÓN 1: COMPARATIVA DE FRECUENCIA DE COMPRA (1, 2, 3, 4 VECES POR SEMANA) */}
@@ -712,180 +1149,7 @@ export function ReportsView() {
         </CardContent>
       </Card>
 
-      {/* SECCIÓN 2: REGISTRO DE TICKETS Y FACTURAS DEL PERÍODO */}
-      <Card className="shadow-xs border-slate-200">
-        <CardHeader className="p-4 sm:p-5 pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Receipt className="w-4.5 h-4.5 text-slate-700" />
-                Registro de Facturas y Tickets de Venta
-              </CardTitle>
-              <CardDescription className="text-xs mt-0.5">
-                {data?.periodLabel} • Consulta y reimprime cualquier factura.
-              </CardDescription>
-            </div>
-
-            <div className="w-full sm:w-64">
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
-                <Input
-                  placeholder="Buscar ticket o cliente..."
-                  value={ticketSearch}
-                  onChange={(e) => setTicketSearch(e.target.value)}
-                  className="pl-8 h-9 text-xs"
-                />
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-4 sm:p-5 pt-0">
-          {filteredSales.length === 0 ? (
-            <div className="text-center py-10 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
-              <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-xs font-semibold text-slate-700">
-                No hay tickets registrados en {data?.periodLabel || "este período"}.
-              </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Cuando realices ventas en el Punto de Venta (POS), aparecerán aquí con opción de reimpresión.
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Tarjetas Móviles de Tickets (< md) */}
-              <div className="md:hidden space-y-2.5">
-                {filteredSales.map((sale) => (
-                  <div
-                    key={sale.id}
-                    className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs space-y-2.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-slate-900 text-sm">
-                        {sale.saleCode}
-                      </span>
-                      <Badge
-                        variant={sale.realMarginPercent >= 30 ? "success" : "destructive"}
-                        className="text-[10px] font-bold"
-                      >
-                        {sale.realMarginPercent}% Margen
-                      </Badge>
-                    </div>
-
-                    <div className="flex justify-between items-baseline text-xs">
-                      <span className="text-slate-700 font-semibold truncate max-w-[180px]">
-                        {sale.customerName || "Cliente Mostrador"}
-                      </span>
-                      <span className="text-slate-400 text-[11px] font-mono">
-                        {new Date(sale.date).toLocaleDateString("es-CO", {
-                          day: "2-digit",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center py-2 px-2.5 bg-slate-50 rounded-lg text-xs border border-slate-100">
-                      <div className="flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-semibold text-slate-700">
-                          {sale.paymentMethod}
-                        </span>
-                        <span className="text-slate-400 text-[11px]">
-                          {sale.items?.length || 0} ítems
-                        </span>
-                      </div>
-                      <span className="font-mono font-black text-slate-900 text-base">
-                        {formatCurrency(sale.totalAmount)}
-                      </span>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenInvoice(sale)}
-                      className="w-full h-9 text-xs font-semibold gap-1.5 border-slate-200 hover:bg-slate-50 cursor-pointer"
-                    >
-                      <Printer className="w-3.5 h-3.5 text-slate-500" />
-                      Ver / Reimprimir Factura
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Tabla Desktop de Tickets (>= md) */}
-              <div className="hidden md:block overflow-x-auto border border-slate-200 rounded-lg">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
-                    <tr>
-                      <th className="py-2.5 px-3">Ticket / Código</th>
-                      <th className="py-2.5 px-3">Fecha y Hora</th>
-                      <th className="py-2.5 px-3">Cliente</th>
-                      <th className="py-2.5 px-3">Medio de Pago</th>
-                      <th className="py-2.5 px-3 text-right">Items</th>
-                      <th className="py-2.5 px-3 text-right">Total Facturado</th>
-                      <th className="py-2.5 px-3 text-center">Margen Real</th>
-                      <th className="py-2.5 px-3 text-right">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredSales.map((sale) => (
-                      <tr key={sale.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
-                          {sale.saleCode}
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">
-                          {new Date(sale.date).toLocaleDateString("es-CO", {
-                            day: "2-digit",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </td>
-                        <td className="py-2.5 px-3 font-medium text-slate-800">
-                          {sale.customerName || "Cliente Mostrador"}
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-600">
-                          <span className="inline-block px-2 py-0.5 bg-slate-100 rounded text-[11px]">
-                            {sale.paymentMethod}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right text-slate-600 font-mono">
-                          {sale.items?.length || 0}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
-                          {formatCurrency(sale.totalAmount)}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <Badge
-                            variant={sale.realMarginPercent >= 30 ? "success" : "destructive"}
-                            className="text-[10px] font-bold"
-                          >
-                            {sale.realMarginPercent}%
-                          </Badge>
-                        </td>
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenInvoice(sale)}
-                            className="h-7 text-[11px] gap-1 px-2.5 cursor-pointer"
-                          >
-                            <Printer className="w-3 h-3 text-slate-500" />
-                            Ver Factura
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* SECCIÓN 3: REGISTRO DE COMPRAS Y LOTES DEL PERÍODO */}
+      {/* SECCIÓN: REGISTRO DE COMPRAS Y LOTES ADQUIRIDOS */}
       <Card className="shadow-xs border-slate-200">
         <CardHeader className="p-4 sm:p-5 pb-3">
           <div className="flex items-center justify-between">

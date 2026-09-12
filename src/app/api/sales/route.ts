@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase, genId } from "@/lib/supabase";
 import { calculateRealMargin } from "@/lib/finance";
 import { getTenantId } from "@/lib/tenant";
+import { colombiaDateStringToIso } from "@/lib/dateUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -159,6 +160,7 @@ export async function POST(request: Request) {
           currentBalance: totalAmount,
           dailyInterestRate: 0.01,
           creditDate: new Date().toISOString(),
+          dueDate: body.dueDate ? colombiaDateStringToIso(body.dueDate) : null,
           status: "PENDIENTE",
           totalInterestPaid: 0,
           totalCapitalPaid: 0,

@@ -26,7 +26,9 @@ import {
   Fish,
   ChevronLeft,
   ChevronRight,
+  Calendar,
 } from "lucide-react";
+import { getColombiaDateString } from "@/lib/dateUtils";
 import {
   Card,
   CardHeader,
@@ -375,6 +377,7 @@ export function PosView({
   const [customerName, setCustomerName] = useState("Cliente Mostrador");
   const [customerPhone, setCustomerPhone] = useState("");
   const [creditNotes, setCreditNotes] = useState("");
+  const [creditDueDate, setCreditDueDate] = useState("");
   const [customerError, setCustomerError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("EFECTIVO");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -829,7 +832,8 @@ export function PosView({
     const payload = {
       customerName: customerName.trim() || "Cliente Mostrador",
       customerPhone: customerPhone.trim() || undefined,
-      notes: creditNotes.trim() || undefined,
+      notes: creditNotes.trim() || (creditDueDate ? `Fecha pactada de pago: ${creditDueDate}` : undefined),
+      dueDate: creditDueDate ? creditDueDate : undefined,
       paymentMethod,
       items: cart.map((i) => ({
         productId: i.product.id,
@@ -883,6 +887,7 @@ export function PosView({
       setCustomerName("Cliente Mostrador");
       setCustomerPhone("");
       setCreditNotes("");
+      setCreditDueDate("");
       setPaymentMethod("EFECTIVO");
       setMobilePosTab("catalog");
       const cached = getCachedProducts();
@@ -932,6 +937,7 @@ export function PosView({
       setCustomerName("Cliente Mostrador");
       setCustomerPhone("");
       setCreditNotes("");
+      setCreditDueDate("");
       setPaymentMethod("EFECTIVO");
       loadProducts();
       loadQuickSelectors();
@@ -1390,8 +1396,15 @@ export function PosView({
                       onChange={(e) => {
                         const val = e.target.value;
                         setPaymentMethod(val);
-                        if (val === "CREDITO" && customerName === "Cliente Mostrador") {
-                          setCustomerName("");
+                        if (val === "CREDITO") {
+                          if (customerName === "Cliente Mostrador") {
+                            setCustomerName("");
+                          }
+                          if (!creditDueDate) {
+                            const d = new Date();
+                            d.setDate(d.getDate() + 7);
+                            setCreditDueDate(getColombiaDateString(d));
+                          }
                         }
                       }}
                       className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-900 shadow-xs focus:outline-none"
@@ -1406,8 +1419,22 @@ export function PosView({
 
                 {/* Campos extra y aviso de interés al fiar */}
                 {paymentMethod === "CREDITO" && (
-                  <div className="space-y-2 pt-1 animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2.5 pt-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold text-amber-900 uppercase block mb-1 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-amber-600" />
+                          Fecha Posible de Pago *
+                        </label>
+                        <input
+                          type="date"
+                          value={creditDueDate}
+                          min={getColombiaDateString()}
+                          onChange={(e) => setCreditDueDate(e.target.value)}
+                          className="h-8 w-full rounded-md border border-amber-300 bg-amber-50/60 px-2.5 py-1 text-xs font-bold text-amber-950 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                        />
+                      </div>
+
                       <div>
                         <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
                           Teléfono / Celular (Opcional)
@@ -1420,18 +1447,43 @@ export function PosView({
                           placeholder="Ej: 310 123 4567"
                         />
                       </div>
-                      <div>
-                        <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
-                          Nota / Plazo acordado
-                        </label>
-                        <Input
-                          type="text"
-                          value={creditNotes}
-                          onChange={(e) => setCreditNotes(e.target.value)}
-                          className="h-8 text-xs"
-                          placeholder="Ej: Paga el sábado"
-                        />
-                      </div>
+                    </div>
+
+                    {/* Atajos Rápidos de Fecha */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                      <span className="text-[10px] text-amber-800 font-semibold shrink-0">Plazo sugerido:</span>
+                      {[
+                        { days: 3, label: "+3 días" },
+                        { days: 7, label: "+1 semana" },
+                        { days: 15, label: "+15 días" },
+                        { days: 30, label: "+1 mes" },
+                      ].map((preset) => (
+                        <button
+                          key={preset.days}
+                          type="button"
+                          onClick={() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + preset.days);
+                            setCreditDueDate(getColombiaDateString(d));
+                          }}
+                          className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition-colors cursor-pointer shrink-0"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
+                        Observación adicional (Opcional)
+                      </label>
+                      <Input
+                        type="text"
+                        value={creditNotes}
+                        onChange={(e) => setCreditNotes(e.target.value)}
+                        className="h-8 text-xs"
+                        placeholder="Ej: Autorizado por Andrés / Paga en quincena"
+                      />
                     </div>
 
                     <div className="p-2.5 rounded-lg bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">

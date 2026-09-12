@@ -64,6 +64,7 @@ interface CreditItem {
   currentBalance: number;
   dailyInterestRate: number;
   creditDate: string;
+  dueDate?: string | null;
   status: string;
   totalInterestPaid: number;
   totalCapitalPaid: number;
@@ -579,6 +580,18 @@ export function CreditsView() {
                                   {cr.calculation.daysElapsed}{" "}
                                   {cr.calculation.daysElapsed === 1 ? "día transcurrido" : "días transcurridos"}
                                 </Badge>
+                                {cr.dueDate && (
+                                  <Badge
+                                    className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] font-bold"
+                                  >
+                                    📅 Pago prometido: {new Date(cr.dueDate).toLocaleDateString("es-CO", {
+                                      day: "2-digit",
+                                      month: "short",
+                                      year: "numeric",
+                                      timeZone: "America/Bogota",
+                                    })}
+                                  </Badge>
+                                )}
                                 {cr.notes && (
                                   <span className="text-[10px] text-slate-500 italic">
                                     "{cr.notes}"

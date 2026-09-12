@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const period = searchParams.get("period") || "monthly"; // "daily" | "weekly" | "biweekly" | "monthly"
+    const period = searchParams.get("period") || "monthly"; // "daily" | "weekly" | "biweekly" | "monthly" | "all"
+    const dateParam = searchParams.get("date"); // "YYYY-MM-DD"
 
     const colParts = getColombiaDateParts();
     let startDate = new Date();
@@ -27,7 +28,13 @@ export async function GET(request: Request) {
       "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ];
 
-    if (period === "daily") {
+    if (dateParam) {
+      const { startIso, endIso } = getColombiaDayRange(dateParam);
+      startDate = new Date(startIso);
+      endDate = new Date(endIso);
+      const [y, m, d] = dateParam.split("-").map(Number);
+      periodLabel = `${d} de ${monthNames[(m || 1) - 1]} de ${y}`;
+    } else if (period === "daily") {
       const { startIso, endIso } = getColombiaDayRange();
       startDate = new Date(startIso);
       endDate = new Date(endIso);
@@ -49,6 +56,10 @@ export async function GET(request: Request) {
         const lastDay = new Date(Date.UTC(colParts.year, colParts.month, 0)).getUTCDate();
         periodLabel = `2da Quincena (16 - ${lastDay} de ${monthNames[colParts.month - 1]})`;
       }
+    } else if (period === "all") {
+      startDate = new Date(0);
+      endDate = new Date("2099-12-31T23:59:59.999Z");
+      periodLabel = "Todo el Histórico";
     } else {
       // monthly
       const { startIso, endIso } = getColombiaMonthRange();
@@ -59,8 +70,8 @@ export async function GET(request: Request) {
 
     const tenantId = getTenantId(request);
 
-    // Consultar datos de ventas, compras, mermas, productos y gastos desde Supabase filtrados por tenantId
-    const [salesRes, batchesRes, wasteRes, productsRes, expensesRes] = await Promise.all([
+    // Consultar datos de ventas, compras, mermas, productos, gastos y pagos de créditos desde Supabase filtrados por tenantId
+    const [salesRes, batchesRes, wasteRes, productsRes, expensesRes, creditPaymentsRes] = await Promise.all([
       supabase
         .from("cl_sales")
         .select(`
@@ -103,6 +114,11 @@ export async function GET(request: Request) {
         .select("*")
         .eq("tenantId", tenantId)
         .order("expenseDate", { ascending: false }),
+      supabase
+        .from("cl_credit_payments")
+        .select("*")
+        .eq("tenantId", tenantId)
+        .order("paymentDate", { ascending: false }),
     ]);
 
     const allSales = (salesRes.data || []) as any[];
@@ -110,6 +126,7 @@ export async function GET(request: Request) {
     const allWasteLogs = (wasteRes.data || []) as any[];
     const products = (productsRes.data || []) as any[];
     const allExpenses = (expensesRes.data || []) as any[];
+    const allCreditPayments = (creditPaymentsRes.data || []) as any[];
 
     // Filtrar por el período seleccionado
     const periodSales = allSales.filter((s) => {
@@ -130,6 +147,16 @@ export async function GET(request: Request) {
     const periodExpenses = allExpenses.filter((e) => {
       const d = new Date(e.expenseDate);
       return d >= startDate && d <= endDate;
+    });
+
+    const periodCreditPayments = allCreditPayments.filter((p) => {
+      const d = new Date(p.paymentDate || p.createdAt);
+      return d >= startDate && d <= endDate;
+    });
+
+    let periodCreditPaymentsTotal = 0;
+    periodCreditPayments.forEach((p) => {
+      periodCreditPaymentsTotal += Number(p.amountPaid) || 0;
     });
 
     let periodExpensesTotal = 0;
@@ -337,6 +364,132 @@ export async function GET(request: Request) {
       })
       .filter((p) => p.isUnderTarget);
 
+    // 9. Consolidación de Movimientos Unificados (Libro de Caja y Operaciones)
+    const movements: Array<{
+      id: string;
+      type: "VENTA" | "GASTO" | "COMPRA" | "ABONO_CREDITO";
+      flow: "INGRESO" | "EGRESO";
+      date: string;
+      timeStr: string;
+      title: string;
+      subtitle: string;
+      amount: number;
+      paymentMethod?: string;
+      category?: string;
+      referenceId?: string;
+      raw?: any;
+    }> = [];
+
+    for (const sale of periodSales) {
+      const d = new Date(sale.date);
+      const timeStr = d.toLocaleTimeString("es-CO", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: "America/Bogota",
+      });
+      const itemsCount = sale.items ? sale.items.length : 0;
+      const itemsText = sale.items
+        ? sale.items.slice(0, 3).map((i: any) => `${i.product?.name || "Item"} (${i.quantity}${i.product?.unit || ""})`).join(", ") + (itemsCount > 3 ? "..." : "")
+        : "";
+
+      movements.push({
+        id: sale.id,
+        type: "VENTA",
+        flow: "INGRESO",
+        date: sale.date,
+        timeStr,
+        title: `Venta #${sale.saleCode || sale.id.slice(-6)}`,
+        subtitle: `Cliente: ${sale.customerName || "Cliente Mostrador"}${itemsText ? ` • ${itemsText}` : ""}`,
+        amount: Number(sale.totalAmount) || 0,
+        paymentMethod: sale.paymentMethod,
+        category: "VENTAS",
+        referenceId: sale.saleCode,
+        raw: sale,
+      });
+    }
+
+    for (const exp of periodExpenses) {
+      const d = new Date(exp.expenseDate || exp.createdAt);
+      const timeStr = d.toLocaleTimeString("es-CO", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: "America/Bogota",
+      });
+
+      movements.push({
+        id: exp.id,
+        type: "GASTO",
+        flow: "EGRESO",
+        date: exp.expenseDate || exp.createdAt,
+        timeStr,
+        title: exp.description || `Gasto ${exp.category}`,
+        subtitle: `Categoría: ${exp.category}${exp.recipient ? ` • A: ${exp.recipient}` : ""}${exp.registeredBy ? ` • Por: ${exp.registeredBy}` : ""}`,
+        amount: Number(exp.amount) || 0,
+        paymentMethod: exp.paymentMethod || "EFECTIVO",
+        category: exp.category,
+        referenceId: exp.id,
+        raw: exp,
+      });
+    }
+
+    for (const batch of periodBatches) {
+      const d = new Date(batch.date);
+      const timeStr = d.toLocaleTimeString("es-CO", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: "America/Bogota",
+      });
+
+      movements.push({
+        id: batch.id,
+        type: "COMPRA",
+        flow: "EGRESO",
+        date: batch.date,
+        timeStr,
+        title: `Compra Lote: ${batch.batchNumber || batch.id.slice(-6)}`,
+        subtitle: `Proveedor: ${batch.supplier || "Sin proveedor"}${batch.totalWeightKg ? ` • ${batch.totalWeightKg} kg` : ""}`,
+        amount: Number(batch.totalCost) || 0,
+        paymentMethod: "TRANSFERENCIA",
+        category: "COMPRA_MERCANCIA",
+        referenceId: batch.batchNumber,
+        raw: batch,
+      });
+    }
+
+    for (const payment of periodCreditPayments) {
+      const d = new Date(payment.paymentDate || payment.createdAt);
+      const timeStr = d.toLocaleTimeString("es-CO", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: "America/Bogota",
+      });
+
+      movements.push({
+        id: payment.id,
+        type: "ABONO_CREDITO",
+        flow: "INGRESO",
+        date: payment.paymentDate || payment.createdAt,
+        timeStr,
+        title: `Abono de Fiado: ${payment.customerName || "Cliente"}`,
+        subtitle: `Recibo${payment.receiptNumber ? ` #${payment.receiptNumber}` : ""}${payment.notes ? ` • "${payment.notes}"` : ""}`,
+        amount: Number(payment.amountPaid) || 0,
+        paymentMethod: payment.paymentMethod || "EFECTIVO",
+        category: "ABONOS",
+        referenceId: payment.receiptNumber,
+        raw: payment,
+      });
+    }
+
+    movements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const totalIngresos = periodRevenue + periodCreditPaymentsTotal;
+    const totalEgresos = periodPurchasesCost + periodExpensesTotal;
+    const netCashProfit = totalIngresos - totalEgresos;
+
     const netProfit = periodProfit - periodExpensesTotal;
     const netMarginPercent = periodRevenue > 0
       ? Number(((netProfit / periodRevenue) * 100).toFixed(2))
@@ -352,7 +505,12 @@ export async function GET(request: Request) {
           totalCost: periodCost,
           totalProfit: periodProfit, // Ganancia Bruta (Ventas - Costo productos)
           overallRealMarginPercent: periodRealMarginPercent,
-          totalExpenses: periodExpensesTotal, // Gastos Operativos (Insumos, Nómina, Arriendo, Servicios)
+          totalExpenses: periodExpensesTotal, // Gastos Operativos
+          totalPurchases: periodPurchasesCost, // Compras de Lotes
+          totalCreditPayments: periodCreditPaymentsTotal, // Abonos recibidos
+          totalIngresos, // Ventas + Abonos
+          totalEgresos, // Gastos + Compras
+          netCashProfit, // Ingresos - Egresos
           netProfit, // Verdadera Ganancia Neta
           netMarginPercent,
           totalQuantityKg: periodQuantityKg,
@@ -377,6 +535,9 @@ export async function GET(request: Request) {
         },
         periodSales, // Tickets para imprimir/ver factura
         periodBatches, // Compras del período
+        periodExpenses, // Gastos del período
+        periodCreditPayments, // Abonos del período
+        movements, // Flujo unificado cronológico
         timelineData,
         batchesProgress,
         categoryStats,

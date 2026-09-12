@@ -19,6 +19,7 @@ import {
   LogOut,
   WalletCards,
   ReceiptText,
+  DollarSign,
 } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -88,8 +89,8 @@ export function Navbar({
     },
     {
       id: "reports" as ActiveTab,
-      label: "Registro & Facturas",
-      icon: Receipt,
+      label: "Finanzas",
+      icon: DollarSign,
     },
     {
       id: "smart-pricing" as ActiveTab,
@@ -124,8 +125,8 @@ export function Navbar({
     },
     {
       id: "reports" as ActiveTab,
-      label: "Facturas",
-      icon: Receipt,
+      label: "Finanzas",
+      icon: DollarSign,
     },
   ];
 
