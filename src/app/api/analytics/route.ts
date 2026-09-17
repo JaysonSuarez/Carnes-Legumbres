@@ -88,7 +88,7 @@ export async function GET(request: Request) {
     } else if (period === "all" || period === "total") {
       startDate = new Date(0);
       endDate = new Date("2099-12-31T23:59:59.999Z");
-      periodLabel = "Todo el Histórico";
+      periodLabel = "Total General (Todo el Histórico)";
     } else {
       // monthly
       const { startIso, endIso } = getColombiaMonthRange();
@@ -606,6 +606,7 @@ export async function GET(request: Request) {
           totalQuantityKg: periodQuantityKg,
           salesCount: periodSales.length,
           targetMarginSatisfied: periodRealMarginPercent >= 30.0,
+          totalRecaudado: totalCash + totalTransfer,
           totalCash,
           totalTransfer,
           netCash,

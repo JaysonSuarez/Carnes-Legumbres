@@ -92,6 +92,7 @@ interface AnalyticsPeriodResponse {
     totalQuantityKg: number;
     salesCount: number;
     targetMarginSatisfied: boolean;
+    totalRecaudado?: number;
     totalCash?: number;
     totalTransfer?: number;
     netCash?: number;
@@ -238,8 +239,11 @@ export function ReportsView() {
   const paymentMetrics = useMemo(() => {
     if (!data) {
       return {
+        totalRecaudado: 0,
         totalCash: 0,
         totalTransfer: 0,
+        pctCash: 0,
+        pctTransfer: 0,
         netCash: 0,
         netTransfer: 0,
         salesCash: 0,
@@ -258,16 +262,26 @@ export function ReportsView() {
       };
     }
 
-    if (data.kpi.totalCash !== undefined && data.kpi.totalTransfer !== undefined) {
+    const tCash = data.kpi.totalCash !== undefined ? (data.kpi.totalCash || 0) : null;
+    const tTransfer = data.kpi.totalTransfer !== undefined ? (data.kpi.totalTransfer || 0) : null;
+
+    if (tCash !== null && tTransfer !== null) {
+      const totRec = data.kpi.totalRecaudado ?? (tCash + tTransfer);
+      const pctC = totRec > 0 ? Math.round((tCash / totRec) * 100) : 0;
+      const pctT = totRec > 0 ? Math.round((tTransfer / totRec) * 100) : 0;
+
       return {
-        totalCash: data.kpi.totalCash || 0,
-        totalTransfer: data.kpi.totalTransfer || 0,
-        netCash: data.kpi.netCash ?? ((data.kpi.totalCash || 0) - (data.kpi.expensesCash || 0)),
+        totalRecaudado: totRec,
+        totalCash: tCash,
+        totalTransfer: tTransfer,
+        pctCash: pctC,
+        pctTransfer: pctT,
+        netCash: data.kpi.netCash ?? (tCash - (data.kpi.expensesCash || 0)),
         netTransfer:
           data.kpi.netTransfer ??
-          ((data.kpi.totalTransfer || 0) -
+          (tTransfer -
             (data.kpi.expensesTransfer || 0) -
-            (data.purchasesKpi.totalSpent || 0)),
+            (data.purchasesKpi?.totalSpent || 0)),
         salesCash: data.kpi.salesCash || 0,
         salesCashCount: data.kpi.salesCashCount || 0,
         salesTransfer: data.kpi.salesTransfer || 0,
@@ -280,7 +294,7 @@ export function ReportsView() {
         creditTransferCount: data.kpi.creditPaymentsTransferCount || 0,
         expensesCash: data.kpi.expensesCash || 0,
         expensesTransfer: data.kpi.expensesTransfer || 0,
-        purchasesTransfer: data.purchasesKpi.totalSpent || 0,
+        purchasesTransfer: data.purchasesKpi?.totalSpent || 0,
       };
     }
 
@@ -331,10 +345,16 @@ export function ReportsView() {
     const purchasesCost = data.purchasesKpi?.totalSpent || 0;
     const totCash = sCash + cCash;
     const totTrans = sTrans + cTrans;
+    const totRec = totCash + totTrans;
+    const pctC = totRec > 0 ? Math.round((totCash / totRec) * 100) : 0;
+    const pctT = totRec > 0 ? Math.round((totTrans / totRec) * 100) : 0;
 
     return {
+      totalRecaudado: totRec,
       totalCash: totCash,
       totalTransfer: totTrans,
+      pctCash: pctC,
+      pctTransfer: pctT,
       netCash: totCash - eCash,
       netTransfer: totTrans - eTrans - purchasesCost,
       salesCash: sCash,
@@ -387,6 +407,34 @@ export function ReportsView() {
     }
     return list;
   }, [allMovements, movementFilter, movementMethodFilter, movementSearch]);
+
+  // Totales de movimientos filtrados
+  const filteredTotals = useMemo(() => {
+    let inc = 0;
+    let exp = 0;
+    let cash = 0;
+    let trans = 0;
+    (filteredMovements || []).forEach((m) => {
+      const isInc = m.flow === "INGRESO";
+      const amt = m.amount || 0;
+      if (isInc) inc += amt;
+      else exp += amt;
+
+      const pm = (m.paymentMethod || "").toUpperCase();
+      if (pm.includes("TRANS") || pm.includes("NEQUI") || pm.includes("BANCO")) {
+        trans += isInc ? amt : -amt;
+      } else {
+        cash += isInc ? amt : -amt;
+      }
+    });
+    return {
+      incomeTotal: inc,
+      expenseTotal: exp,
+      netTotal: inc - exp,
+      cashNet: cash,
+      transferNet: trans,
+    };
+  }, [filteredMovements]);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -464,7 +512,8 @@ export function ReportsView() {
       {/* Tarjetas KPI Principales: INGRESOS, EGRESOS, GANANCIA */}
       {loading && !data ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Skeleton className="h-36 rounded-xl" />
             <Skeleton className="h-36 rounded-xl" />
             <Skeleton className="h-36 rounded-xl" />
           </div>
@@ -489,9 +538,53 @@ export function ReportsView() {
         </Card>
       ) : (
         <>
-          {/* MEDIOS DE PAGO Y ARQUEO DE CAJA: EFECTIVO Y TRANSFERENCIA */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* 1. TOTAL EFECTIVO */}
+          {/* MEDIOS DE PAGO Y ARQUEO DE CAJA: TOTAL GENERAL, EFECTIVO Y TRANSFERENCIA */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* 1. TOTAL GENERAL (RECAUDADO) */}
+            <Card className="shadow-xs border-2 border-slate-900 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white">
+              <CardHeader className="p-4 pb-2">
+                <CardDescription className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-white">
+                    <DollarSign className="w-4 h-4 text-emerald-400" />
+                    Total General Cobrado
+                  </span>
+                  <Badge className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-[10px]">
+                    100% Cobrado
+                  </Badge>
+                </CardDescription>
+                <CardTitle className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono tracking-tight">
+                  +{formatCurrency(paymentMetrics.totalRecaudado)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 text-[11px] text-slate-300 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="flex items-center gap-1">
+                    <Banknote className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    En Efectivo ({paymentMetrics.pctCash}%):
+                  </span>
+                  <strong className="font-mono text-white font-bold">
+                    {formatCurrency(paymentMetrics.totalCash)}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="flex items-center gap-1">
+                    <Smartphone className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                    En Transferencia ({paymentMetrics.pctTransfer}%):
+                  </span>
+                  <strong className="font-mono text-white font-bold">
+                    {formatCurrency(paymentMetrics.totalTransfer)}
+                  </strong>
+                </div>
+                <div className="pt-1.5 border-t border-slate-700/80 flex justify-between text-[10px] text-slate-400 font-mono">
+                  <span>Operaciones cobradas:</span>
+                  <span className="text-slate-200 font-medium">
+                    {paymentMetrics.salesCashCount + paymentMetrics.salesTransferCount} ventas + {paymentMetrics.creditCashCount + paymentMetrics.creditTransferCount} abonos
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 2. TOTAL EFECTIVO */}
             <Card className="shadow-xs border-emerald-300 bg-gradient-to-br from-white via-emerald-50/30 to-emerald-100/40">
               <CardHeader className="p-4 pb-2">
                 <CardDescription className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center justify-between">
@@ -539,7 +632,7 @@ export function ReportsView() {
               </CardContent>
             </Card>
 
-            {/* 2. TOTAL TRANSFERENCIA */}
+            {/* 3. TOTAL TRANSFERENCIA */}
             <Card className="shadow-xs border-sky-300 bg-gradient-to-br from-white via-sky-50/30 to-sky-100/40">
               <CardHeader className="p-4 pb-2">
                 <CardDescription className="text-xs font-bold text-sky-900 uppercase tracking-wider flex items-center justify-between">
@@ -968,6 +1061,21 @@ export function ReportsView() {
                         </div>
                       );
                     })}
+                    {/* Tarjeta de Totales Móvil */}
+                    <div className="p-3 bg-slate-900 text-white rounded-xl shadow-xs space-y-1 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-slate-200">Total Movimientos ({filteredMovements.length}):</span>
+                        <strong className="font-mono text-emerald-400 text-base">
+                          {filteredTotals.netTotal >= 0
+                            ? `+${formatCurrency(filteredTotals.netTotal)}`
+                            : `-${formatCurrency(Math.abs(filteredTotals.netTotal))}`}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between text-[11px] text-slate-300 pt-1 border-t border-slate-800">
+                        <span>💵 Efec: {formatCurrency(filteredTotals.cashNet)}</span>
+                        <span>📲 Transf: {formatCurrency(filteredTotals.transferNet)}</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Tabla Desktop de Movimientos (>= md) */}
@@ -1064,6 +1172,26 @@ export function ReportsView() {
                           );
                         })}
                       </tbody>
+                      <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-semibold text-xs">
+                        <tr>
+                          <td colSpan={3} className="py-2.5 px-3 text-slate-800 font-bold">
+                            Total Movimientos Filtrados ({filteredMovements.length}):
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-700 font-mono text-[11px]">
+                            <span className="text-emerald-800 font-bold">Efec: {formatCurrency(filteredTotals.cashNet)}</span>
+                            <span className="mx-1.5 text-slate-400">•</span>
+                            <span className="text-sky-800 font-bold">Transf: {formatCurrency(filteredTotals.transferNet)}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-black text-sm whitespace-nowrap">
+                            <span className={filteredTotals.netTotal >= 0 ? "text-emerald-800" : "text-rose-800"}>
+                              {filteredTotals.netTotal >= 0
+                                ? `+${formatCurrency(filteredTotals.netTotal)}`
+                                : `-${formatCurrency(Math.abs(filteredTotals.netTotal))}`}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3"></td>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 </>
