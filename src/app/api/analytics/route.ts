@@ -12,6 +12,35 @@ import {
 
 export const dynamic = "force-dynamic";
 
+export function normalizePaymentMethod(
+  method?: string | null
+): "EFECTIVO" | "TRANSFERENCIA" | "CREDITO" | "TARJETA" | "OTRO" {
+  if (!method) return "EFECTIVO";
+  const clean = method.trim().toUpperCase();
+  if (clean === "EFECTIVO" || clean.includes("EFECTIVO")) return "EFECTIVO";
+  if (
+    clean === "TRANSFERENCIA" ||
+    clean.includes("TRANSFER") ||
+    clean.includes("NEQUI") ||
+    clean.includes("BANCO") ||
+    clean.includes("DAVIPLATA")
+  ) {
+    return "TRANSFERENCIA";
+  }
+  if (clean === "CREDITO" || clean.includes("CREDIT") || clean.includes("FIADO")) {
+    return "CREDITO";
+  }
+  if (
+    clean === "TARJETA" ||
+    clean.includes("TARJETA") ||
+    clean.includes("DEBITO") ||
+    clean.includes("DATAFONO")
+  ) {
+    return "TARJETA";
+  }
+  return "OTRO";
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -56,7 +85,7 @@ export async function GET(request: Request) {
         const lastDay = new Date(Date.UTC(colParts.year, colParts.month, 0)).getUTCDate();
         periodLabel = `2da Quincena (16 - ${lastDay} de ${monthNames[colParts.month - 1]})`;
       }
-    } else if (period === "all") {
+    } else if (period === "all" || period === "total") {
       startDate = new Date(0);
       endDate = new Date("2099-12-31T23:59:59.999Z");
       periodLabel = "Todo el Histórico";
@@ -155,11 +184,29 @@ export async function GET(request: Request) {
     });
 
     let periodCreditPaymentsTotal = 0;
+    let creditPaymentsCashTotal = 0;
+    let creditPaymentsCashCount = 0;
+    let creditPaymentsTransferTotal = 0;
+    let creditPaymentsTransferCount = 0;
+
     periodCreditPayments.forEach((p) => {
-      periodCreditPaymentsTotal += Number(p.amountPaid) || 0;
+      const amt = Number(p.amountPaid) || 0;
+      periodCreditPaymentsTotal += amt;
+      const method = normalizePaymentMethod(p.paymentMethod);
+      if (method === "TRANSFERENCIA") {
+        creditPaymentsTransferTotal += amt;
+        creditPaymentsTransferCount += 1;
+      } else {
+        creditPaymentsCashTotal += amt;
+        creditPaymentsCashCount += 1;
+      }
     });
 
     let periodExpensesTotal = 0;
+    let expensesCashTotal = 0;
+    let expensesCashCount = 0;
+    let expensesTransferTotal = 0;
+    let expensesTransferCount = 0;
     const periodExpensesByCategory: Record<string, number> = {
       ARRIENDO: 0,
       SERVICIOS: 0,
@@ -175,6 +222,14 @@ export async function GET(request: Request) {
       periodExpensesTotal += amt;
       periodExpensesByCategory[exp.category] =
         (periodExpensesByCategory[exp.category] || 0) + amt;
+      const method = normalizePaymentMethod(exp.paymentMethod);
+      if (method === "TRANSFERENCIA") {
+        expensesTransferTotal += amt;
+        expensesTransferCount += 1;
+      } else {
+        expensesCashTotal += amt;
+        expensesCashCount += 1;
+      }
     });
 
     // 1. Métricas de Ventas en el Período
@@ -182,6 +237,17 @@ export async function GET(request: Request) {
     let periodCost = 0;
     let periodProfit = 0;
     let periodQuantityKg = 0;
+
+    let salesCashTotal = 0;
+    let salesCashCount = 0;
+    let salesTransferTotal = 0;
+    let salesTransferCount = 0;
+    let salesCreditTotal = 0;
+    let salesCreditCount = 0;
+    let salesCardTotal = 0;
+    let salesCardCount = 0;
+    let salesOtherTotal = 0;
+    let salesOtherCount = 0;
 
     for (const sale of periodSales) {
       periodRevenue += sale.totalAmount;
@@ -191,6 +257,25 @@ export async function GET(request: Request) {
         if (item.product.unit === "kg") {
           periodQuantityKg += item.quantity;
         }
+      }
+
+      const method = normalizePaymentMethod(sale.paymentMethod);
+      const amt = Number(sale.totalAmount) || 0;
+      if (method === "EFECTIVO") {
+        salesCashTotal += amt;
+        salesCashCount += 1;
+      } else if (method === "TRANSFERENCIA") {
+        salesTransferTotal += amt;
+        salesTransferCount += 1;
+      } else if (method === "CREDITO") {
+        salesCreditTotal += amt;
+        salesCreditCount += 1;
+      } else if (method === "TARJETA") {
+        salesCardTotal += amt;
+        salesCardCount += 1;
+      } else {
+        salesOtherTotal += amt;
+        salesOtherCount += 1;
       }
     }
 
@@ -208,6 +293,11 @@ export async function GET(request: Request) {
         periodPurchasesKg += batch.totalWeightKg;
       }
     }
+
+    const totalCash = salesCashTotal + creditPaymentsCashTotal;
+    const totalTransfer = salesTransferTotal + creditPaymentsTransferTotal;
+    const netCash = totalCash - expensesCashTotal;
+    const netTransfer = totalTransfer - expensesTransferTotal - periodPurchasesCost;
 
     // 3. Mermas en el Período
     const periodWasteCost = periodWasteLogs.reduce((acc, l) => acc + l.costLoss, 0);
@@ -516,6 +606,60 @@ export async function GET(request: Request) {
           totalQuantityKg: periodQuantityKg,
           salesCount: periodSales.length,
           targetMarginSatisfied: periodRealMarginPercent >= 30.0,
+          totalCash,
+          totalTransfer,
+          netCash,
+          netTransfer,
+          salesCash: salesCashTotal,
+          salesCashCount,
+          salesTransfer: salesTransferTotal,
+          salesTransferCount,
+          salesCredit: salesCreditTotal,
+          salesCreditCount,
+          salesCard: salesCardTotal,
+          salesCardCount,
+          salesOther: salesOtherTotal,
+          salesOtherCount,
+          creditPaymentsCash: creditPaymentsCashTotal,
+          creditPaymentsCashCount,
+          creditPaymentsTransfer: creditPaymentsTransferTotal,
+          creditPaymentsTransferCount,
+          expensesCash: expensesCashTotal,
+          expensesCashCount,
+          expensesTransfer: expensesTransferTotal,
+          expensesTransferCount,
+          paymentMethods: {
+            cash: {
+              sales: salesCashTotal,
+              salesCount: salesCashCount,
+              creditPayments: creditPaymentsCashTotal,
+              creditPaymentsCount: creditPaymentsCashCount,
+              totalIncome: totalCash,
+              expenses: expensesCashTotal,
+              expensesCount: expensesCashCount,
+              net: netCash,
+            },
+            transfer: {
+              sales: salesTransferTotal,
+              salesCount: salesTransferCount,
+              creditPayments: creditPaymentsTransferTotal,
+              creditPaymentsCount: creditPaymentsTransferCount,
+              totalIncome: totalTransfer,
+              expenses: expensesTransferTotal,
+              expensesCount: expensesTransferCount,
+              purchases: periodPurchasesCost,
+              purchasesCount: periodBatches.length,
+              net: netTransfer,
+            },
+            credit: {
+              sales: salesCreditTotal,
+              salesCount: salesCreditCount,
+            },
+            card: {
+              sales: salesCardTotal,
+              salesCount: salesCardCount,
+            },
+          },
         },
         expensesKpi: {
           totalExpenses: periodExpensesTotal,

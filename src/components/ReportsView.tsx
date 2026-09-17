@@ -28,6 +28,8 @@ import {
   WalletCards,
   RefreshCw,
   X,
+  Banknote,
+  Smartphone,
 } from "lucide-react";
 import {
   Card,
@@ -90,6 +92,25 @@ interface AnalyticsPeriodResponse {
     totalQuantityKg: number;
     salesCount: number;
     targetMarginSatisfied: boolean;
+    totalCash?: number;
+    totalTransfer?: number;
+    netCash?: number;
+    netTransfer?: number;
+    salesCash?: number;
+    salesCashCount?: number;
+    salesTransfer?: number;
+    salesTransferCount?: number;
+    salesCredit?: number;
+    salesCreditCount?: number;
+    creditPaymentsCash?: number;
+    creditPaymentsCashCount?: number;
+    creditPaymentsTransfer?: number;
+    creditPaymentsTransferCount?: number;
+    expensesCash?: number;
+    expensesCashCount?: number;
+    expensesTransfer?: number;
+    expensesTransferCount?: number;
+    paymentMethods?: any;
   };
   expensesKpi?: {
     totalExpenses: number;
@@ -126,6 +147,7 @@ export function ReportsView() {
 
   // Filtros de Movimientos
   const [movementFilter, setMovementFilter] = useState<"ALL" | "INGRESO" | "EGRESO">("ALL");
+  const [movementMethodFilter, setMovementMethodFilter] = useState<"ALL" | "EFECTIVO" | "TRANSFERENCIA">("ALL");
   const [movementSearch, setMovementSearch] = useState("");
 
   // Diálogos para auditoría de facturas
@@ -187,7 +209,7 @@ export function ReportsView() {
     { id: "daily", label: "Diario", desc: "Hoy" },
     { id: "weekly", label: "Semanal", desc: "Esta semana (Lun-Dom)" },
     { id: "monthly", label: "Mensual", desc: "Mes actual completo" },
-    { id: "all", label: "Todo", desc: "Histórico completo" },
+    { id: "all", label: "Total", desc: "Histórico completo" },
   ];
 
   // Cálculos consolidados de Ingresos, Egresos y Ganancia
@@ -212,6 +234,125 @@ export function ReportsView() {
     return data.kpi.netCashProfit ?? (totalIngresos - totalEgresos);
   }, [data, totalIngresos, totalEgresos]);
 
+  // Métricas detalladas de Efectivo y Transferencia
+  const paymentMetrics = useMemo(() => {
+    if (!data) {
+      return {
+        totalCash: 0,
+        totalTransfer: 0,
+        netCash: 0,
+        netTransfer: 0,
+        salesCash: 0,
+        salesCashCount: 0,
+        salesTransfer: 0,
+        salesTransferCount: 0,
+        salesCredit: 0,
+        salesCreditCount: 0,
+        creditCash: 0,
+        creditCashCount: 0,
+        creditTransfer: 0,
+        creditTransferCount: 0,
+        expensesCash: 0,
+        expensesTransfer: 0,
+        purchasesTransfer: 0,
+      };
+    }
+
+    if (data.kpi.totalCash !== undefined && data.kpi.totalTransfer !== undefined) {
+      return {
+        totalCash: data.kpi.totalCash || 0,
+        totalTransfer: data.kpi.totalTransfer || 0,
+        netCash: data.kpi.netCash ?? ((data.kpi.totalCash || 0) - (data.kpi.expensesCash || 0)),
+        netTransfer:
+          data.kpi.netTransfer ??
+          ((data.kpi.totalTransfer || 0) -
+            (data.kpi.expensesTransfer || 0) -
+            (data.purchasesKpi.totalSpent || 0)),
+        salesCash: data.kpi.salesCash || 0,
+        salesCashCount: data.kpi.salesCashCount || 0,
+        salesTransfer: data.kpi.salesTransfer || 0,
+        salesTransferCount: data.kpi.salesTransferCount || 0,
+        salesCredit: data.kpi.salesCredit || 0,
+        salesCreditCount: data.kpi.salesCreditCount || 0,
+        creditCash: data.kpi.creditPaymentsCash || 0,
+        creditCashCount: data.kpi.creditPaymentsCashCount || 0,
+        creditTransfer: data.kpi.creditPaymentsTransfer || 0,
+        creditTransferCount: data.kpi.creditPaymentsTransferCount || 0,
+        expensesCash: data.kpi.expensesCash || 0,
+        expensesTransfer: data.kpi.expensesTransfer || 0,
+        purchasesTransfer: data.purchasesKpi.totalSpent || 0,
+      };
+    }
+
+    // Fallback cliente
+    let sCash = 0, sCashCount = 0;
+    let sTrans = 0, sTransCount = 0;
+    let sCredit = 0, sCreditCount = 0;
+    (data.periodSales || []).forEach((s: any) => {
+      const m = String(s.paymentMethod || "EFECTIVO").toUpperCase();
+      const amt = Number(s.totalAmount) || 0;
+      if (m.includes("TRANS") || m.includes("NEQUI") || m.includes("BANCO")) {
+        sTrans += amt;
+        sTransCount += 1;
+      } else if (m.includes("CREDIT") || m.includes("FIADO")) {
+        sCredit += amt;
+        sCreditCount += 1;
+      } else {
+        sCash += amt;
+        sCashCount += 1;
+      }
+    });
+
+    let cCash = 0, cCashCount = 0;
+    let cTrans = 0, cTransCount = 0;
+    (data.periodCreditPayments || []).forEach((p: any) => {
+      const m = String(p.paymentMethod || "EFECTIVO").toUpperCase();
+      const amt = Number(p.amountPaid) || 0;
+      if (m.includes("TRANS") || m.includes("NEQUI") || m.includes("BANCO")) {
+        cTrans += amt;
+        cTransCount += 1;
+      } else {
+        cCash += amt;
+        cCashCount += 1;
+      }
+    });
+
+    let eCash = 0, eTrans = 0;
+    (data.periodExpenses || []).forEach((e: any) => {
+      const m = String(e.paymentMethod || "EFECTIVO").toUpperCase();
+      const amt = Number(e.amount) || 0;
+      if (m.includes("TRANS") || m.includes("NEQUI") || m.includes("BANCO")) {
+        eTrans += amt;
+      } else {
+        eCash += amt;
+      }
+    });
+
+    const purchasesCost = data.purchasesKpi?.totalSpent || 0;
+    const totCash = sCash + cCash;
+    const totTrans = sTrans + cTrans;
+
+    return {
+      totalCash: totCash,
+      totalTransfer: totTrans,
+      netCash: totCash - eCash,
+      netTransfer: totTrans - eTrans - purchasesCost,
+      salesCash: sCash,
+      salesCashCount: sCashCount,
+      salesTransfer: sTrans,
+      salesTransferCount: sTransCount,
+      salesCredit: sCredit,
+      salesCreditCount: sCreditCount,
+      creditCash: cCash,
+      creditCashCount: cCashCount,
+      creditTransfer: cTrans,
+      creditTransferCount: cTransCount,
+      expensesCash: eCash,
+      expensesTransfer: eTrans,
+      purchasesTransfer: purchasesCost,
+    };
+  }, [data]);
+
   // Lista de Movimientos Unificada y Filtrada
   const allMovements = useMemo(() => {
     return data?.movements || [];
@@ -221,6 +362,17 @@ export function ReportsView() {
     let list = allMovements;
     if (movementFilter !== "ALL") {
       list = list.filter((m) => m.flow === movementFilter);
+    }
+    if (movementMethodFilter !== "ALL") {
+      list = list.filter((m) => {
+        const pm = (m.paymentMethod || "").toUpperCase();
+        if (movementMethodFilter === "EFECTIVO") {
+          return pm.includes("EFECTIVO") || (!pm.includes("TRANS") && !pm.includes("NEQUI") && !pm.includes("CREDIT") && !pm.includes("TARJETA"));
+        } else if (movementMethodFilter === "TRANSFERENCIA") {
+          return pm.includes("TRANS") || pm.includes("NEQUI") || pm.includes("BANCO");
+        }
+        return true;
+      });
     }
     if (movementSearch.trim()) {
       const q = movementSearch.toLowerCase();
@@ -234,7 +386,7 @@ export function ReportsView() {
       );
     }
     return list;
-  }, [allMovements, movementFilter, movementSearch]);
+  }, [allMovements, movementFilter, movementMethodFilter, movementSearch]);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -311,10 +463,16 @@ export function ReportsView() {
 
       {/* Tarjetas KPI Principales: INGRESOS, EGRESOS, GANANCIA */}
       {loading && !data ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Skeleton className="h-32 rounded-xl" />
-          <Skeleton className="h-32 rounded-xl" />
-          <Skeleton className="h-32 rounded-xl" />
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Skeleton className="h-36 rounded-xl" />
+            <Skeleton className="h-36 rounded-xl" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+          </div>
         </div>
       ) : !data ? (
         <Card className="border-red-200 bg-red-50/50 p-6 text-center">
@@ -331,6 +489,106 @@ export function ReportsView() {
         </Card>
       ) : (
         <>
+          {/* MEDIOS DE PAGO Y ARQUEO DE CAJA: EFECTIVO Y TRANSFERENCIA */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* 1. TOTAL EFECTIVO */}
+            <Card className="shadow-xs border-emerald-300 bg-gradient-to-br from-white via-emerald-50/30 to-emerald-100/40">
+              <CardHeader className="p-4 pb-2">
+                <CardDescription className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Banknote className="w-4 h-4 text-emerald-600" />
+                    Total Efectivo
+                  </span>
+                  <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] font-bold">
+                    Caja Física
+                  </Badge>
+                </CardDescription>
+                <CardTitle className="text-2xl sm:text-3xl font-black text-emerald-700 font-mono tracking-tight">
+                  +{formatCurrency(paymentMetrics.totalCash)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 text-[11px] text-slate-600 space-y-1.5">
+                <div className="flex justify-between">
+                  <span>Ventas en efectivo:</span>
+                  <strong className="font-mono text-slate-800">
+                    {formatCurrency(paymentMetrics.salesCash)} ({paymentMetrics.salesCashCount} tickets)
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Abonos recibidos en efectivo:</span>
+                  <strong className="font-mono text-emerald-700">
+                    +{formatCurrency(paymentMetrics.creditCash)} ({paymentMetrics.creditCashCount} abonos)
+                  </strong>
+                </div>
+                {paymentMetrics.expensesCash > 0 && (
+                  <div className="flex justify-between text-rose-600">
+                    <span>Gastos pagados en efectivo:</span>
+                    <strong className="font-mono">
+                      -{formatCurrency(paymentMetrics.expensesCash)}
+                    </strong>
+                  </div>
+                )}
+                <div className="flex justify-between pt-1 border-t border-emerald-200/70 font-medium">
+                  <span className="text-slate-700 font-semibold">Efectivo neto en caja:</span>
+                  <strong className="font-mono font-bold text-emerald-800">
+                    {paymentMetrics.netCash >= 0
+                      ? `+${formatCurrency(paymentMetrics.netCash)}`
+                      : `-${formatCurrency(Math.abs(paymentMetrics.netCash))}`}
+                  </strong>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 2. TOTAL TRANSFERENCIA */}
+            <Card className="shadow-xs border-sky-300 bg-gradient-to-br from-white via-sky-50/30 to-sky-100/40">
+              <CardHeader className="p-4 pb-2">
+                <CardDescription className="text-xs font-bold text-sky-900 uppercase tracking-wider flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Smartphone className="w-4 h-4 text-sky-600" />
+                    Total en Transferencia
+                  </span>
+                  <Badge variant="outline" className="bg-sky-100 text-sky-800 border-sky-300 text-[10px] font-bold">
+                    Nequi / Bancos
+                  </Badge>
+                </CardDescription>
+                <CardTitle className="text-2xl sm:text-3xl font-black text-sky-700 font-mono tracking-tight">
+                  +{formatCurrency(paymentMetrics.totalTransfer)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 text-[11px] text-slate-600 space-y-1.5">
+                <div className="flex justify-between">
+                  <span>Ventas por transferencia:</span>
+                  <strong className="font-mono text-slate-800">
+                    {formatCurrency(paymentMetrics.salesTransfer)} ({paymentMetrics.salesTransferCount} tickets)
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Abonos por transferencia:</span>
+                  <strong className="font-mono text-sky-700">
+                    +{formatCurrency(paymentMetrics.creditTransfer)} ({paymentMetrics.creditTransferCount} abonos)
+                  </strong>
+                </div>
+                {(paymentMetrics.expensesTransfer > 0 || paymentMetrics.purchasesTransfer > 0) && (
+                  <div className="flex justify-between text-rose-600">
+                    <span>Egresos / compras transferencia:</span>
+                    <strong className="font-mono">
+                      -{formatCurrency(paymentMetrics.expensesTransfer + paymentMetrics.purchasesTransfer)}
+                    </strong>
+                  </div>
+                )}
+                <div className="flex justify-between pt-1 border-t border-sky-200/70 font-medium">
+                  <span className="text-slate-700 font-semibold">Transferencia neta:</span>
+                  <strong className="font-mono font-bold text-sky-800">
+                    {paymentMetrics.netTransfer >= 0
+                      ? `+${formatCurrency(paymentMetrics.netTransfer)}`
+                      : `-${formatCurrency(Math.abs(paymentMetrics.netTransfer))}`}
+                  </strong>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tarjetas Principales Consolidadas: INGRESOS, EGRESOS, GANANCIA */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* 1. INGRESOS */}
             <Card className="shadow-xs border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/30">
@@ -338,7 +596,7 @@ export function ReportsView() {
                 <CardDescription className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
-                    Ingresos
+                    Ingresos Totales
                   </span>
                   <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px]">
                     Entradas
@@ -360,6 +618,10 @@ export function ReportsView() {
                   <strong className="font-mono text-emerald-700">
                     +{formatCurrency(data.kpi.totalCreditPayments || 0)}
                   </strong>
+                </div>
+                <div className="pt-1.5 border-t border-emerald-200/60 flex items-center justify-between text-[10px] font-medium text-slate-500">
+                  <span>💵 Efec: <strong className="font-mono text-emerald-800 font-bold">{formatCurrency(paymentMetrics.totalCash)}</strong></span>
+                  <span>📲 Transf: <strong className="font-mono text-sky-800 font-bold">{formatCurrency(paymentMetrics.totalTransfer)}</strong></span>
                 </div>
               </CardContent>
             </Card>
@@ -452,6 +714,19 @@ export function ReportsView() {
             </Card>
           </div>
 
+          {/* Alerta informativa de Ventas a Crédito / Fiados emitidos si existen */}
+          {paymentMetrics.salesCredit > 0 && (
+            <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
+              <span className="flex items-center gap-1.5 font-medium">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                Fiados emitidos en el período: <strong className="font-mono font-bold">{formatCurrency(paymentMetrics.salesCredit)}</strong> ({paymentMetrics.salesCreditCount} ventas pendientes por cobrar).
+              </span>
+              <span className="text-[11px] text-amber-700">
+                (El dinero físico o digital ingresa al registrarse los abonos de los clientes)
+              </span>
+            </div>
+          )}
+
           {/* Barra Informativa Secundaria (Mermas & Margen Mercancía) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
             <div className="flex items-center justify-between px-2">
@@ -494,8 +769,9 @@ export function ReportsView() {
                   </CardDescription>
                 </div>
 
-                {/* Filtros de Flujo y Buscador */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                {/* Filtros de Flujo, Medio de Pago y Buscador */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-wrap">
+                  {/* Flujo: Todos / Ingresos / Egresos */}
                   <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
                     <button
                       type="button"
@@ -531,6 +807,45 @@ export function ReportsView() {
                     >
                       <ArrowUpRight className="w-3.5 h-3.5" />
                       Egresos ({allMovements.filter((m) => m.flow === "EGRESO").length})
+                    </button>
+                  </div>
+
+                  {/* Medio de Pago: Todos / Efectivo / Transferencia */}
+                  <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setMovementMethodFilter("ALL")}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                        movementMethodFilter === "ALL"
+                          ? "bg-white text-slate-900 shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Medio: Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMovementMethodFilter("EFECTIVO")}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                        movementMethodFilter === "EFECTIVO"
+                          ? "bg-emerald-700 text-white shadow-xs"
+                          : "text-slate-700 hover:text-slate-900"
+                      }`}
+                    >
+                      <Banknote className="w-3.5 h-3.5 text-emerald-500" />
+                      Solo Efectivo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMovementMethodFilter("TRANSFERENCIA")}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                        movementMethodFilter === "TRANSFERENCIA"
+                          ? "bg-sky-700 text-white shadow-xs"
+                          : "text-slate-700 hover:text-slate-900"
+                      }`}
+                    >
+                      <Smartphone className="w-3.5 h-3.5 text-sky-500" />
+                      Solo Transferencia
                     </button>
                   </div>
 
