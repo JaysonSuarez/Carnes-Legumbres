@@ -12,6 +12,7 @@ import { ExpensesView } from "@/components/ExpensesView";
 
 import { LoginForm } from "@/components/LoginForm";
 import { AndresPaymentReminder } from "@/components/AndresPaymentReminder";
+import { TenantServiceGuard } from "@/components/TenantServiceGuard";
 import { getSession, logout, AuthSession } from "@/lib/auth";
 
 export default function Home() {
@@ -139,6 +140,7 @@ export default function Home() {
         </div>
       </footer>
       <AndresPaymentReminder tenantId={session.tenantId} />
+      <TenantServiceGuard tenantId={session.tenantId} />
     </div>
   );
 }

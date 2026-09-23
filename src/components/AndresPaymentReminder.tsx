@@ -19,7 +19,6 @@ const REMINDER_INTERVAL_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 15 * 1000;
 const STORAGE_PREFIX = `cl-payment-reminder:${TENANT_ID}:${DUE_DATE}`;
 const NEXT_REMINDER_KEY = `${STORAGE_PREFIX}:next`;
-const PAID_KEY = `${STORAGE_PREFIX}:paid`;
 const DEADLINE_DISMISSED_KEY = `${STORAGE_PREFIX}:deadline-dismissed`;
 
 type BogotaTime = {
@@ -53,9 +52,7 @@ export function AndresPaymentReminder({ tenantId }: { tenantId: string }) {
 
     const now = Date.now();
     const bogotaTime = getBogotaTime(new Date(now));
-    const paidToday = window.localStorage.getItem(PAID_KEY) === "1";
-
-    if (paidToday || bogotaTime.date !== DUE_DATE) {
+    if (bogotaTime.date !== DUE_DATE) {
       setOpen(false);
       return;
     }
@@ -110,11 +107,6 @@ export function AndresPaymentReminder({ tenantId }: { tenantId: string }) {
     );
   };
 
-  const hideForToday = () => {
-    window.localStorage.setItem(PAID_KEY, "1");
-    setOpen(false);
-  };
-
   if (tenantId !== TENANT_ID) return null;
 
   return (
@@ -144,21 +136,17 @@ export function AndresPaymentReminder({ tenantId }: { tenantId: string }) {
         </div>
 
         <p className="text-center text-xs leading-relaxed text-slate-500">
-          Si ya realizaste el pago, puedes ocultar los avisos por hoy. Esta acción
-          solo oculta el recordatorio en este dispositivo; no registra ni confirma
-          el pago.
+          La administración confirmará el pago. El aviso se repetirá mientras el
+          servicio siga activo y el pago permanezca pendiente.
         </p>
 
         <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
-          <Button
-            variant="outline"
-            className="w-full border-amber-300 text-amber-900 hover:bg-amber-50"
-            onClick={hideForToday}
-          >
-            Ya pagué · ocultar avisos hoy
-          </Button>
           {!deadlineReached && (
-            <Button className="w-full" onClick={() => handleOpenChange(false)}>
+            <Button
+              variant="outline"
+              className="w-full border-amber-300 text-amber-900 hover:bg-amber-50"
+              onClick={() => handleOpenChange(false)}
+            >
               Recordarme en 5 minutos
             </Button>
           )}

@@ -23,6 +23,7 @@ import { ExpensesView } from "@/components/ExpensesView";
 import { OfflineSyncIndicator } from "@/components/OfflineSyncIndicator";
 import { LoginForm } from "@/components/LoginForm";
 import { AndresPaymentReminder } from "@/components/AndresPaymentReminder";
+import { TenantServiceGuard } from "@/components/TenantServiceGuard";
 import { getSession, logout, AuthSession, hasRoleAccess } from "@/lib/auth";
 
 export default function MostradorPage() {
@@ -271,6 +272,7 @@ export default function MostradorPage() {
         </div>
       </footer>
       <AndresPaymentReminder tenantId={session.tenantId} />
+      <TenantServiceGuard tenantId={session.tenantId} />
     </div>
   );
 }
