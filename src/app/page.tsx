@@ -11,6 +11,7 @@ import { CreditsView } from "@/components/CreditsView";
 import { ExpensesView } from "@/components/ExpensesView";
 
 import { LoginForm } from "@/components/LoginForm";
+import { AndresPaymentReminder } from "@/components/AndresPaymentReminder";
 import { getSession, logout, AuthSession } from "@/lib/auth";
 
 export default function Home() {
@@ -137,6 +138,7 @@ export default function Home() {
           </span>
         </div>
       </footer>
+      <AndresPaymentReminder tenantId={session.tenantId} />
     </div>
   );
 }
