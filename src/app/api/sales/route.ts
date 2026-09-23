@@ -9,25 +9,45 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const tenantId = getTenantId(request);
+    const search = new URL(request.url).searchParams.get("search")?.trim().slice(0, 80);
 
-    const { data: sales, error } = await supabase
+    let salesQuery = supabase
       .from("cl_sales")
       .select(`
         *,
         items:cl_sale_items(
           *,
           product:cl_products(*)
-        )
+        ),
+        returns:cl_sale_returns(id, returnedAt, refundAmount)
       `)
       .eq("tenantId", tenantId)
       .order("date", { ascending: false })
       .limit(50);
 
+    if (search) {
+      const safeSearch = search.replace(/[,%()_*]/g, " ").replace(/\s+/g, " ").trim();
+      if (safeSearch) {
+        salesQuery = salesQuery.or(`saleCode.ilike.%${safeSearch}%,customerName.ilike.%${safeSearch}%`);
+      }
+    }
+
+    const { data: sales, error } = await salesQuery;
+
     if (error) {
       throw error;
     }
 
-    return NextResponse.json({ success: true, data: sales || [] });
+    const normalizedSales = (sales || []).map((sale) => {
+      if (!sale.createdAt) return sale;
+      const createdAtString = String(sale.createdAt);
+      const withTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(createdAtString)
+        ? createdAtString
+        : `${createdAtString}Z`;
+      return { ...sale, createdAt: new Date(withTimezone).toISOString() };
+    });
+
+    return NextResponse.json({ success: true, data: normalizedSales });
   } catch (error) {
     console.error("Error fetching sales:", error);
     return NextResponse.json(
@@ -44,6 +64,7 @@ export async function POST(request: Request) {
     const {
       customerName = "Cliente Mostrador",
       paymentMethod = "EFECTIVO",
+      saleDate,
       items = [], // { productId, quantity, unitPrice }
     } = body;
 
@@ -124,6 +145,14 @@ export async function POST(request: Request) {
     const realMarginPercent = calculateRealMargin(totalCost, totalAmount);
     const saleCode = `VTA-${Date.now().toString().slice(-6)}`;
 
+    const selectedSaleDate = saleDate ? String(saleDate).slice(0, 10) : undefined;
+    if (selectedSaleDate && !/^\d{4}-\d{2}-\d{2}$/.test(selectedSaleDate)) {
+      return NextResponse.json(
+        { success: false, error: "La fecha de venta no es válida" },
+        { status: 400 }
+      );
+    }
+
     // 1. Insertar venta con tenantId
     const { data: newSale, error: saleErr } = await supabase
       .from("cl_sales")
@@ -137,6 +166,8 @@ export async function POST(request: Request) {
         totalProfit,
         realMarginPercent,
         tenantId,
+        createdAt: new Date().toISOString(),
+        ...(selectedSaleDate ? { date: colombiaDateStringToIso(selectedSaleDate) } : {}),
       })
       .select()
       .single();
@@ -226,9 +257,41 @@ export async function POST(request: Request) {
       .eq("tenantId", tenantId)
       .single();
 
+    const savedSale = completeSale || newSale;
+    const formatCop = (val: number) =>
+      new Intl.NumberFormat("es-CO", {
+        style: "currency",
+        currency: "COP",
+        maximumFractionDigits: 0,
+      }).format(val);
+    if (body.source === "mostrador") {
+      try {
+        await supabase.from("cl_notifications").insert({
+          id: genId("notif"),
+          tenantId,
+          type: "SALE",
+          title: "🧾 Nueva venta en mostrador",
+          message: `Ticket ${savedSale.saleCode} • ${savedSale.customerName || "Cliente Mostrador"} • ${formatCop(savedSale.totalAmount)} • ${savedSale.paymentMethod}`,
+          metadata: {
+            saleId,
+            saleCode: savedSale.saleCode,
+            totalAmount: savedSale.totalAmount,
+            paymentMethod: savedSale.paymentMethod,
+            customerName: savedSale.customerName,
+            changedBy: "mostrador",
+            source: "mostrador",
+          },
+          readByAdmin: false,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (notificationError) {
+        console.error("Error creating sale notification:", notificationError);
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      data: completeSale || newSale,
+      data: savedSale,
       stockAlerts,
     });
   } catch (error: any) {

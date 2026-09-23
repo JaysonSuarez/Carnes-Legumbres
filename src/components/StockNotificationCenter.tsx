@@ -369,7 +369,7 @@ export function StockNotificationCenter({
 
         {/* Panel Desplegable de Notificaciones */}
         {isOpen && (
-          <div className="absolute right-0 mt-2 w-[calc(100vw-32px)] sm:w-96 max-w-[400px] rounded-xl bg-white border border-slate-200 shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="fixed left-2 right-2 top-16 w-auto max-h-[calc(100dvh-5rem)] rounded-xl bg-white border border-slate-200 shadow-xl z-[60] overflow-hidden animate-in fade-in zoom-in-95 duration-150 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96 sm:max-w-[min(400px,calc(100vw-2rem))]">
             {/* Cabecera del Panel */}
             <div className="p-3 bg-slate-900 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -448,9 +448,9 @@ export function StockNotificationCenter({
 
             {/* Contenido Pestaña Seguridad: Modificaciones hechas desde el Mostrador */}
             {activeTab === "security" && (
-              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 text-xs">
+              <div className="max-h-[60dvh] overflow-y-auto overscroll-contain divide-y divide-slate-100 text-xs sm:max-h-80">
                 {adminNotifications.length > 0 && unreadSecurityCount > 0 && (
-                  <div className="p-2 bg-slate-50 flex items-center justify-between border-b border-slate-200">
+                    <div className="p-2 bg-slate-50 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200">
                     <span className="text-[10px] text-slate-500 font-semibold uppercase">
                       Cambios realizados en mostrador
                     </span>
@@ -491,23 +491,23 @@ export function StockNotificationCenter({
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-start gap-1.5">
                               {isUnread && (
                                 <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0 animate-pulse" />
                               )}
                               <span
-                                className={`font-bold block truncate ${
+                                className={`font-bold block min-w-0 whitespace-normal break-words leading-snug ${
                                   isUnread ? "text-rose-950" : "text-slate-800"
                                 }`}
                               >
                                 {notif.title}
                               </span>
                             </div>
-                            <p className="text-[11px] text-slate-700 mt-1 leading-snug">
+                            <p className="text-[11px] text-slate-700 mt-1 leading-snug whitespace-normal break-words">
                               {notif.message}
                             </p>
-                            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400">
-                              <span className="flex items-center gap-1">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[10px] text-slate-400">
+                              <span className="flex items-center gap-1 shrink-0">
                                 <Clock className="w-3 h-3" />
                                 {formatTimeAgo(notif.createdAt)}
                               </span>
@@ -538,7 +538,7 @@ export function StockNotificationCenter({
 
             {/* Contenido Pestaña Stock: Productos Agotados y Bajos */}
             {activeTab === "stock" && (
-              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 text-xs">
+              <div className="max-h-[60dvh] overflow-y-auto overscroll-contain divide-y divide-slate-100 text-xs sm:max-h-80">
                 {loading && products.length === 0 ? (
                   <div className="p-6 text-center text-slate-400">
                     Verificando inventario...
@@ -650,7 +650,7 @@ export function StockNotificationCenter({
 
       {/* Contenedor de Toasts Flotantes en la Pantalla */}
       {toasts.length > 0 && (
-        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-50 flex flex-col gap-2 sm:max-w-sm pointer-events-none">
+        <div className="fixed bottom-4 left-2 right-2 sm:left-auto sm:right-4 z-50 flex flex-col gap-2 sm:max-w-sm pointer-events-none">
           {toasts.map((toast) => (
             <div
               key={toast.id}
@@ -668,10 +668,10 @@ export function StockNotificationCenter({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="text-xs font-bold leading-tight flex items-center justify-between">
-                  <span>{toast.title}</span>
+                <h4 className="text-xs font-bold leading-tight flex items-start justify-between">
+                  <span className="min-w-0 whitespace-normal break-words">{toast.title}</span>
                 </h4>
-                <p className="text-[11px] text-white/90 mt-1 leading-relaxed">
+                <p className="text-[11px] text-white/90 mt-1 leading-relaxed whitespace-normal break-words">
                   {toast.message}
                 </p>
               </div>

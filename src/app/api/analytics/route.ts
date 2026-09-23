@@ -111,7 +111,8 @@ export async function GET(request: Request) {
               *,
               category:cl_categories(*)
             )
-          )
+          ),
+          returns:cl_sale_returns(id)
         `)
         .eq("tenantId", tenantId)
         .order("date", { ascending: false }),
@@ -150,7 +151,7 @@ export async function GET(request: Request) {
         .order("paymentDate", { ascending: false }),
     ]);
 
-    const allSales = (salesRes.data || []) as any[];
+    const allSales = ((salesRes.data || []) as any[]).filter((sale) => !sale.returns?.length);
     const allBatches = (batchesRes.data || []) as any[];
     const allWasteLogs = (wasteRes.data || []) as any[];
     const products = (productsRes.data || []) as any[];

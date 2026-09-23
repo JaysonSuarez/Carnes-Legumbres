@@ -31,12 +31,12 @@ export async function GET(request: Request) {
     // 2. Obtener items de ventas recientes del tenant (últimos 400 ítems)
     const { data: dbItems, error: itemsErr } = await supabase
       .from("cl_sale_items")
-      .select("productId, quantity, unitPrice, subtotal, sale:cl_sales(date)")
+      .select("productId, quantity, unitPrice, subtotal, sale:cl_sales(date, returns:cl_sale_returns(id))")
       .eq("tenantId", tenantId)
       .order("id", { ascending: false })
       .limit(400);
 
-    const saleItems: RawSaleItem[] = (dbItems || []).map((item: any) => ({
+    const saleItems: RawSaleItem[] = (dbItems || []).filter((item: any) => !item.sale?.returns?.length).map((item: any) => ({
       productId: item.productId,
       quantity: Number(item.quantity || 0),
       unitPrice: Number(item.unitPrice || 0),

@@ -79,6 +79,12 @@ export async function POST(request: Request) {
           { status: 404 }
         );
       }
+      if (credit.status === "DEVUELTO") {
+        return NextResponse.json(
+          { success: false, error: "No se pueden registrar abonos a un fiado devuelto." },
+          { status: 409 }
+        );
+      }
 
       const calc = calculateCreditState(
         credit.currentBalance,
@@ -105,7 +111,7 @@ export async function POST(request: Request) {
       const newTotalInterestPaid = (credit.totalInterestPaid || 0) + interestToPay;
 
       // Actualizar crédito
-      const { error: updErr } = await supabase
+      const { data: updatedCredit, error: updErr } = await supabase
         .from("cl_credits")
         .update({
           currentBalance: newBalance,
@@ -115,9 +121,18 @@ export async function POST(request: Request) {
           updatedAt: now.toISOString(),
         })
         .eq("id", creditId)
-        .eq("tenantId", tenantId);
+        .eq("tenantId", tenantId)
+        .neq("status", "DEVUELTO")
+        .select("id")
+        .maybeSingle();
 
       if (updErr) throw updErr;
+      if (!updatedCredit) {
+        return NextResponse.json(
+          { success: false, error: "No se pueden registrar abonos a un fiado devuelto." },
+          { status: 409 }
+        );
+      }
 
       // Registrar pago
       const paymentId = genId("cpay");
@@ -140,6 +155,12 @@ export async function POST(request: Request) {
         .select()
         .single();
 
+      if (payErr?.message?.includes("CREDIT_RETURNED")) {
+        return NextResponse.json(
+          { success: false, error: "No se pueden registrar abonos a un fiado devuelto." },
+          { status: 409 }
+        );
+      }
       if (payErr) throw payErr;
       createdPayments.push(newPayment);
 

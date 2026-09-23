@@ -246,7 +246,7 @@ export default function MostradorPage() {
 
       {/* Contenedor Principal del Mostrador */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 py-3 sm:px-6 sm:py-5 lg:p-6 pb-20 md:pb-6">
-        {activeView === "pos" && <PosView showHeader={false} />}
+        {activeView === "pos" && <PosView showHeader={false} isCashier />}
         {activeView === "inventory" && <InventoryView isCashierView={true} />}
         {activeView === "credits" && <CreditsView />}
         {activeView === "expenses" && <ExpensesView />}

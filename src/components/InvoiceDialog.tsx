@@ -15,6 +15,7 @@ export interface SaleInvoiceData {
   id?: string;
   saleCode: string;
   date: string | Date;
+  createdAt?: string | null;
   customerName: string;
   paymentMethod: string;
   totalAmount: number;
@@ -33,6 +34,11 @@ export interface SaleInvoiceData {
     unitCost?: number;
     profit?: number;
     realMarginPercent?: number;
+  }>;
+  returns?: Array<{
+    id: string;
+    returnedAt: string;
+    refundAmount: number;
   }>;
 }
 

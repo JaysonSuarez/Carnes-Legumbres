@@ -28,7 +28,7 @@ import {
   ChevronRight,
   Calendar,
 } from "lucide-react";
-import { getColombiaDateString } from "@/lib/dateUtils";
+import { colombiaDateStringToIso, getColombiaDateString } from "@/lib/dateUtils";
 import {
   Card,
   CardHeader,
@@ -88,6 +88,21 @@ interface CartItem {
   costSubtotal: number;
   profit: number;
   realMarginPercent: number;
+}
+
+interface PosDraft {
+  cart: CartItem[];
+  customerName: string;
+  customerPhone: string;
+  creditNotes: string;
+  creditDueDate: string;
+  paymentMethod: string;
+  saleDate: string;
+}
+
+function getPosDraftStorageKey() {
+  const session = getSession();
+  return `cl_pos_draft_v1_${session?.tenantId || "default"}_${session?.username || "guest"}`;
 }
 
 // Configuración de Iconos, Colores y Etiquetas por Categoría General
@@ -366,9 +381,11 @@ export const getProductConfig = (productName: string, categoryName = "") => {
 export function PosView({
   onSaleCompleted,
   showHeader = true,
+  isCashier = false,
 }: {
   onSaleCompleted?: () => void;
   showHeader?: boolean;
+  isCashier?: boolean;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -380,6 +397,14 @@ export function PosView({
   const [creditDueDate, setCreditDueDate] = useState("");
   const [customerError, setCustomerError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("EFECTIVO");
+  const [saleDate, setSaleDate] = useState(() => getColombiaDateString());
+  const [draftReady, setDraftReady] = useState(false);
+  const [recentSales, setRecentSales] = useState<SaleInvoiceData[]>([]);
+  const [saleHistorySearch, setSaleHistorySearch] = useState("");
+  const [saleHistoryLoading, setSaleHistoryLoading] = useState(false);
+  const [salesNow, setSalesNow] = useState(() => Date.now());
+  const [saleToReturn, setSaleToReturn] = useState<SaleInvoiceData | null>(null);
+  const [isReturningSale, setIsReturningSale] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -639,6 +664,110 @@ export function PosView({
     loadQuickSelectors();
   }, []);
 
+  // Restaurar el borrador guardado es una lectura inicial de almacenamiento local.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    try {
+      const rawDraft = localStorage.getItem(getPosDraftStorageKey());
+      if (rawDraft) {
+        const draft = JSON.parse(rawDraft) as Partial<PosDraft>;
+        if (Array.isArray(draft.cart)) setCart(draft.cart);
+        if (typeof draft.customerName === "string") setCustomerName(draft.customerName);
+        if (typeof draft.customerPhone === "string") setCustomerPhone(draft.customerPhone);
+        if (typeof draft.creditNotes === "string") setCreditNotes(draft.creditNotes);
+        if (typeof draft.creditDueDate === "string") setCreditDueDate(draft.creditDueDate);
+        if (typeof draft.paymentMethod === "string") setPaymentMethod(draft.paymentMethod);
+        if (typeof draft.saleDate === "string") setSaleDate(draft.saleDate);
+      }
+    } catch (error) {
+      console.warn("No se pudo recuperar el borrador del ticket:", error);
+    } finally {
+      setDraftReady(true);
+    }
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    if (!draftReady) return;
+    const draft: PosDraft = {
+      cart,
+      customerName,
+      customerPhone,
+      creditNotes,
+      creditDueDate,
+      paymentMethod,
+      saleDate,
+    };
+    try {
+      localStorage.setItem(getPosDraftStorageKey(), JSON.stringify(draft));
+    } catch (error) {
+      console.warn("No se pudo guardar el borrador del ticket:", error);
+    }
+  }, [cart, customerName, customerPhone, creditNotes, creditDueDate, paymentMethod, saleDate, draftReady]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setSaleHistoryLoading(true);
+      try {
+        const query = saleHistorySearch.trim();
+        const res = await fetch(`/api/sales${query ? `?search=${encodeURIComponent(query)}` : ""}`);
+        const data = await res.json();
+        if (!cancelled && data.success && Array.isArray(data.data)) {
+          setRecentSales(data.data);
+        }
+      } catch (error) {
+        console.warn("No se pudo cargar el historial de tickets:", error);
+      } finally {
+        if (!cancelled) setSaleHistoryLoading(false);
+      }
+    }, saleHistorySearch ? 250 : 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [saleHistorySearch]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setSalesNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const handleReturnSale = async () => {
+    if (!saleToReturn?.id || isReturningSale) return;
+    setIsReturningSale(true);
+    try {
+      const res = await fetch(`/api/sales/${encodeURIComponent(saleToReturn.id)}/return`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "No se pudo registrar la devolución");
+      }
+
+      setSaleToReturn(null);
+      const historyRes = await fetch(`/api/sales${saleHistorySearch.trim() ? `?search=${encodeURIComponent(saleHistorySearch.trim())}` : ""}`);
+      const historyData = await historyRes.json();
+      if (historyData.success && Array.isArray(historyData.data)) setRecentSales(historyData.data);
+      const isCreditReturn = saleToReturn.paymentMethod === "CREDITO";
+      dispatchStockToast({
+        title: "Devolución registrada",
+        message: isCreditReturn
+          ? `Se canceló el saldo del fiado y se actualizaron las existencias del ticket ${saleToReturn.saleCode}.`
+          : `Se reintegraron ${formatCurrency(data.data.refundAmount)} y se actualizaron las existencias del ticket ${saleToReturn.saleCode}.`,
+        type: "info",
+      });
+    } catch (error) {
+      dispatchStockToast({
+        title: "No se pudo devolver el ticket",
+        message: error instanceof Error ? error.message : "Intenta actualizar el historial y vuelve a intentarlo.",
+        type: "warning",
+      });
+    } finally {
+      setIsReturningSale(false);
+    }
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       checkCategoryScroll();
@@ -835,6 +964,9 @@ export function PosView({
       notes: creditNotes.trim() || (creditDueDate ? `Fecha pactada de pago: ${creditDueDate}` : undefined),
       dueDate: creditDueDate ? creditDueDate : undefined,
       paymentMethod,
+      saleDate,
+      saleCreatedAt: new Date().toISOString(),
+      source: isCashier ? "mostrador" : "admin",
       items: cart.map((i) => ({
         productId: i.product.id,
         quantity: i.quantity,
@@ -850,7 +982,8 @@ export function PosView({
       const offlineSaleInvoice: SaleInvoiceData = {
         id: "offline_" + Date.now(),
         saleCode: `TKT-OFFLINE-${count}`,
-        date: new Date().toISOString(),
+        date: colombiaDateStringToIso(saleDate),
+        createdAt: payload.saleCreatedAt,
         totalAmount,
         totalCost,
         totalProfit,
@@ -889,6 +1022,8 @@ export function PosView({
       setCreditNotes("");
       setCreditDueDate("");
       setPaymentMethod("EFECTIVO");
+      setSaleDate(getColombiaDateString());
+      try { localStorage.removeItem(getPosDraftStorageKey()); } catch {}
       setMobilePosTab("catalog");
       const cached = getCachedProducts();
       if (cached) setProducts(cached);
@@ -939,6 +1074,15 @@ export function PosView({
       setCreditNotes("");
       setCreditDueDate("");
       setPaymentMethod("EFECTIVO");
+      setSaleDate(getColombiaDateString());
+      try { localStorage.removeItem(getPosDraftStorageKey()); } catch {}
+      setSaleHistorySearch("");
+      fetch("/api/sales")
+        .then((historyRes) => historyRes.json())
+        .then((historyData) => {
+          if (historyData.success && Array.isArray(historyData.data)) setRecentSales(historyData.data);
+        })
+        .catch((historyError) => console.warn("No se pudo actualizar el historial:", historyError));
       loadProducts();
       loadQuickSelectors();
       setMobilePosTab("catalog");
@@ -1321,11 +1465,8 @@ export function PosView({
         </div>
 
         {/* Ticket de Venta (5 Columnas) */}
-        <Card
-          className={`lg:col-span-5 shadow-xs flex flex-col justify-between min-h-[560px] ${
-            mobilePosTab === "catalog" ? "hidden lg:flex" : "flex"
-          }`}
-        >
+        <div className={`lg:col-span-5 space-y-3 ${mobilePosTab === "catalog" ? "hidden lg:block" : "block"}`}>
+        <Card className="shadow-xs flex flex-col justify-between min-h-[560px]">
           <div>
             <CardHeader className="p-4 sm:p-5 pb-3 border-b border-slate-100 flex flex-col gap-2">
               <div className="flex items-center justify-between">
@@ -1415,6 +1556,20 @@ export function PosView({
                       <option value="CREDITO">Fiado / Crédito (1% diario)</option>
                     </select>
                   </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" /> Fecha de venta
+                  </label>
+                  <input
+                    type="date"
+                    value={saleDate}
+                    max={getColombiaDateString()}
+                    onChange={(e) => setSaleDate(e.target.value || getColombiaDateString())}
+                    className="h-8 w-full sm:max-w-[220px] rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                    aria-label="Fecha de venta"
+                  />
                 </div>
 
                 {/* Campos extra y aviso de interés al fiar */}
@@ -1628,6 +1783,74 @@ export function PosView({
             </Button>
           </CardFooter>
         </Card>
+
+        <Card>
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm font-bold text-slate-900">Historial de compras</CardTitle>
+            <CardDescription className="text-xs">Busca tickets recientes por código o nombre del cliente.</CardDescription>
+            <div className="relative pt-2">
+              <Search className="absolute left-2.5 top-[18px] w-3.5 h-3.5 text-slate-400" />
+              <Input
+                value={saleHistorySearch}
+                onChange={(e) => setSaleHistorySearch(e.target.value)}
+                placeholder="Buscar ticket o cliente..."
+                className="h-9 pl-8 text-xs"
+                aria-label="Buscar en el historial de compras"
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 pt-1">
+            <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
+              {saleHistoryLoading ? (
+                <p className="py-5 text-center text-xs text-slate-400">Cargando historial...</p>
+              ) : recentSales.length === 0 ? (
+                <p className="py-5 text-center text-xs text-slate-400">No hay tickets que coincidan con la búsqueda.</p>
+              ) : recentSales.map((sale) => {
+                const returned = Boolean(sale.returns?.length);
+                const returnDeadline = sale.createdAt ? new Date(sale.createdAt).getTime() + 5 * 60 * 1000 : 0;
+                const canReturn = !returned && returnDeadline > salesNow && returnDeadline - salesNow <= 5 * 60 * 1000;
+                return (
+                <div key={sale.id || sale.saleCode} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-800 truncate">{sale.saleCode} · {sale.customerName || "Cliente Mostrador"}</p>
+                    <p className="text-[10px] text-slate-500">
+                      {new Date(sale.date).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Bogota" })}
+                      {sale.items?.length ? ` · ${sale.items.length} productos` : ""}
+                      {returned ? " · Devuelto" : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-bold font-mono text-slate-800">{formatCurrency(sale.totalAmount)}</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[10px]"
+                      onClick={() => {
+                        setInvoiceSale(sale);
+                        setShowInvoiceModal(true);
+                      }}
+                    >
+                      Ver ticket
+                    </Button>
+                    {canReturn && sale.id && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[10px] border-rose-200 text-rose-700 hover:bg-rose-50"
+                        onClick={() => setSaleToReturn(sale)}
+                      >
+                        Devolver
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )})}
+            </div>
+          </CardContent>
+        </Card>
+        </div>
       </div>
 
       {/* Barra Flotante Inferior Móvil para Ir al Cobro (Ubicada por encima de la barra de navegación) */}
@@ -1662,6 +1885,27 @@ export function PosView({
         open={showInvoiceModal}
         onOpenChange={setShowInvoiceModal}
       />
+
+      <Dialog open={Boolean(saleToReturn)} onOpenChange={(open) => !open && !isReturningSale && setSaleToReturn(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar devolución</DialogTitle>
+            <DialogDescription>
+              Se devolverá el ticket {saleToReturn?.saleCode}{saleToReturn?.paymentMethod !== "CREDITO" && ` por ${formatCurrency(saleToReturn?.totalAmount || 0)}`}.
+              Los productos volverán al inventario. Esta acción no se puede deshacer.
+              {saleToReturn?.paymentMethod === "CREDITO" && " Se cancelará el saldo del fiado. Solo se podrá completar si no tiene abonos."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="outline" disabled={isReturningSale} onClick={() => setSaleToReturn(null)}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="destructive" disabled={isReturningSale} onClick={handleReturnSale}>
+              {isReturningSale ? "Procesando..." : "Confirmar devolución"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de Venta Rápida por Monto en Dinero ($) */}
       <Dialog

@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
       try {
         if (type === "SALE") {
-          const { customerName, paymentMethod, items } = payload;
+          const { customerName, paymentMethod, items, saleDate } = payload;
           if (!Array.isArray(items) || items.length === 0) continue;
 
           // Buscar productos para calcular costos reales y márgenes dentro del tenant
@@ -71,6 +71,7 @@ export async function POST(request: Request) {
           const saleCode = `TKT-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`;
 
           // 1. Insertar venta con tenantId
+          const selectedSaleDate = saleDate ? String(saleDate).slice(0, 10) : undefined;
           const { error: saleErr } = await supabase.from("cl_sales").insert({
             id: saleId,
             saleCode,
@@ -81,6 +82,10 @@ export async function POST(request: Request) {
             totalProfit,
             realMarginPercent: overallRealMarginPercent,
             tenantId,
+            createdAt: payload.saleCreatedAt || new Date().toISOString(),
+            ...(selectedSaleDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedSaleDate)
+              ? { date: colombiaDateStringToIso(selectedSaleDate) }
+              : {}),
           });
 
           if (saleErr) {
@@ -111,6 +116,36 @@ export async function POST(request: Request) {
           const { error: itemsErr } = await supabase.from("cl_sale_items").insert(saleItemsData);
           if (itemsErr) {
             throw itemsErr;
+          }
+
+          const formatCop = (val: number) =>
+            new Intl.NumberFormat("es-CO", {
+              style: "currency",
+              currency: "COP",
+              maximumFractionDigits: 0,
+            }).format(val);
+          if (payload.source === "mostrador") {
+            try {
+              await supabase.from("cl_notifications").insert({
+                id: genId("notif"),
+                tenantId,
+                type: "SALE",
+                title: "🧾 Nueva venta en mostrador",
+                message: `Ticket ${saleCode} • ${customerName || "Cliente Mostrador"} • ${formatCop(totalAmount)} • ${paymentMethod || "EFECTIVO"}`,
+                metadata: {
+                  saleCode,
+                  totalAmount,
+                  paymentMethod: paymentMethod || "EFECTIVO",
+                  customerName: customerName || "Cliente Mostrador",
+                  changedBy: "mostrador",
+                  source: "mostrador",
+                },
+                readByAdmin: false,
+                createdAt: new Date().toISOString(),
+              });
+            } catch (notificationError) {
+              console.error("Error creating offline sale notification:", notificationError);
+            }
           }
 
           // 3. Descontar inventario de cada producto dentro del mismo tenant
