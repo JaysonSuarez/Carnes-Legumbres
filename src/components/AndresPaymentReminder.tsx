@@ -19,7 +19,6 @@ const REMINDER_INTERVAL_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 15 * 1000;
 const STORAGE_PREFIX = `cl-payment-reminder:${TENANT_ID}:${DUE_DATE}`;
 const NEXT_REMINDER_KEY = `${STORAGE_PREFIX}:next`;
-const DEADLINE_DISMISSED_KEY = `${STORAGE_PREFIX}:deadline-dismissed`;
 
 type BogotaTime = {
   date: string;
@@ -57,15 +56,7 @@ export function AndresPaymentReminder({ tenantId }: { tenantId: string }) {
       return;
     }
 
-    if (bogotaTime.hour >= DUE_HOUR) {
-      setDeadlineReached(true);
-      if (window.localStorage.getItem(DEADLINE_DISMISSED_KEY) !== "1") {
-        setOpen(true);
-      }
-      return;
-    }
-
-    setDeadlineReached(false);
+    setDeadlineReached(bogotaTime.hour >= DUE_HOUR);
     const nextReminderAt = Number(window.localStorage.getItem(NEXT_REMINDER_KEY) || 0);
     if (now >= nextReminderAt) {
       window.localStorage.setItem(
@@ -95,11 +86,6 @@ export function AndresPaymentReminder({ tenantId }: { tenantId: string }) {
 
     setOpen(false);
     if (typeof window === "undefined") return;
-
-    if (deadlineReached) {
-      window.localStorage.setItem(DEADLINE_DISMISSED_KEY, "1");
-      return;
-    }
 
     window.localStorage.setItem(
       NEXT_REMINDER_KEY,
@@ -141,15 +127,13 @@ export function AndresPaymentReminder({ tenantId }: { tenantId: string }) {
         </p>
 
         <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
-          {!deadlineReached && (
-            <Button
-              variant="outline"
-              className="w-full border-amber-300 text-amber-900 hover:bg-amber-50"
-              onClick={() => handleOpenChange(false)}
-            >
-              Recordarme en 5 minutos
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            className="w-full border-amber-300 text-amber-900 hover:bg-amber-50"
+            onClick={() => handleOpenChange(false)}
+          >
+            Posponer 5 minutos
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
